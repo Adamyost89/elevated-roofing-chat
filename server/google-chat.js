@@ -35,14 +35,13 @@ function getSpaceName() {
 async function postMessageToThread(conversationId, text, isVisitor = true) {
   const chat = getChatClient();
   const spaceName = getSpaceName();
-  const body = {
-    text: text,
-    thread: { threadKey: conversationId },
-    messageReplyOption: 'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD',
-  };
   const res = await chat.spaces.messages.create({
     parent: spaceName,
-    requestBody: body,
+    requestBody: {
+      text: text,
+      thread: { threadKey: conversationId },
+    },
+    messageReplyOption: 'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD',
   });
   return res.data;
 }
