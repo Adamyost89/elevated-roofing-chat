@@ -62,6 +62,13 @@ function initDb() {
     insert.run('welcome_text', 'Hi! How can we help you today?');
     insert.run('primary_color', '#2563eb');
     insert.run('position', 'bottom-right');
+    insert.run('button_always_visible', '1');
+    insert.run('button_style', 'icon_only');
+    insert.run('button_label', 'Chat');
+    insert.run('header_title', 'Chat with us');
+    insert.run('input_placeholder', 'Type a message...');
+    insert.run('show_agent_name', '1');
+    insert.run('agent_display_names', '{}');
   }
 }
 

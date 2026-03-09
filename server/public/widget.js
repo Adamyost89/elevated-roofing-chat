@@ -29,7 +29,20 @@
   var conversationId = null;
   var visitorId = null;
   var ws = null;
-  var settings = { delay_seconds: 3, welcome_text: 'Hi! How can we help you today?', primary_color: '#2563eb', position: 'bottom-right' };
+  var settings = {
+    delay_seconds: 3,
+    welcome_text: 'Hi! How can we help you today?',
+    primary_color: '#2563eb',
+    position: 'bottom-right',
+    button_always_visible: true,
+    button_style: 'icon_only',
+    button_label: 'Chat',
+    header_title: 'Chat with us',
+    input_placeholder: 'Type a message...',
+    show_agent_name: true,
+    agent_display_names: {}
+  };
+  var lastShownAgentEmail = null;
 
   function getCookie(name) {
     var m = document.cookie.match(new RegExp('(?:^| )' + name + '=([^;]+)'));
@@ -49,6 +62,13 @@
           settings.welcome_text = s.welcome_text || settings.welcome_text;
           settings.primary_color = s.primary_color || settings.primary_color;
           settings.position = s.position || 'bottom-right';
+          settings.button_always_visible = s.button_always_visible !== false;
+          settings.button_style = s.button_style || 'icon_only';
+          settings.button_label = s.button_label || 'Chat';
+          settings.header_title = s.header_title || 'Chat with us';
+          settings.input_placeholder = s.input_placeholder || 'Type a message...';
+          settings.show_agent_name = s.show_agent_name !== false;
+          settings.agent_display_names = s.agent_display_names || {};
         } catch (e) {}
       }
       if (typeof cb === 'function') cb();
@@ -96,10 +116,27 @@
     } catch (e) {}
   }
 
+  function getAgentDisplayName(email) {
+    if (!email || !settings.agent_display_names) return null;
+    var key = (email || '').toLowerCase();
+    return settings.agent_display_names[key] || settings.agent_display_names[email] || null;
+  }
+
   function appendMessage(msg) {
     var list = root.querySelector('.er-chat-messages');
     if (!list) return;
     if (msg.id && list.querySelector('[data-msg-id="' + msg.id + '"]')) return;
+    if (msg.sender_type === 'agent' && settings.show_agent_name) {
+      var agentEmail = (msg.agent_email || '').toLowerCase();
+      var displayName = getAgentDisplayName(agentEmail) || getAgentDisplayName(msg.agent_email);
+      if (displayName && agentEmail !== lastShownAgentEmail) {
+        lastShownAgentEmail = agentEmail;
+        var joined = document.createElement('div');
+        joined.className = 'er-chat-agent-joined';
+        joined.textContent = 'Now chatting with ' + displayName;
+        list.appendChild(joined);
+      }
+    }
     var div = document.createElement('div');
     if (msg.id) div.setAttribute('data-msg-id', String(msg.id));
     div.className = 'er-chat-msg ' + (msg.sender_type === 'agent' ? 'agent' : 'visitor');
@@ -124,7 +161,10 @@
           var list = root.querySelector('.er-chat-messages');
           if (list) {
             list.innerHTML = '<div class="er-chat-welcome">' + (settings.welcome_text || '') + '</div>';
+            lastShownAgentEmail = null;
             (d.messages || []).forEach(appendMessage);
+            var agentMsgs = (d.messages || []).filter(function(m) { return m.sender_type === 'agent' && m.agent_email; });
+            if (agentMsgs.length > 0) lastShownAgentEmail = (agentMsgs[agentMsgs.length - 1].agent_email || '').toLowerCase();
             if ((d.messages || []).length > 0) {
               var w = list.querySelector('.er-chat-welcome');
               if (w) w.style.display = 'none';
@@ -156,10 +196,11 @@
 
   function renderLauncher() {
     var el = document.createElement('button');
-    el.className = 'er-chat-launcher ' + settings.position;
+    el.className = 'er-chat-launcher ' + settings.position + (settings.button_style === 'icon_and_text' ? ' er-chat-launcher-with-text' : '');
     el.style.backgroundColor = settings.primary_color;
-    el.setAttribute('aria-label', 'Open chat');
-    el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>';
+    el.setAttribute('aria-label', settings.button_label || 'Open chat');
+    el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>' +
+      (settings.button_style === 'icon_and_text' ? '<span class="er-chat-launcher-label">' + (settings.button_label || 'Chat') + '</span>' : '');
     el.onclick = function () {
       el.style.display = 'none';
       showWindow();
@@ -176,14 +217,14 @@
       wrap.className = 'er-chat-window ' + settings.position;
       wrap.innerHTML =
         '<div class="er-chat-header" style="background:' + settings.primary_color + '">' +
-        '<h3>Chat with us</h3>' +
+        '<h3>' + (settings.header_title || 'Chat with us').replace(/</g, '&lt;') + '</h3>' +
         '</div>' +
         '<div class="er-chat-messages">' +
-        '<div class="er-chat-welcome">' + (settings.welcome_text || '') + '</div>' +
+        '<div class="er-chat-welcome">' + (settings.welcome_text || '').replace(/</g, '&lt;') + '</div>' +
         '</div>' +
         '<div class="er-chat-input-area">' +
         '<div class="er-chat-input-row">' +
-        '<textarea class="er-chat-input" rows="1" placeholder="Type a message..."></textarea>' +
+        '<textarea class="er-chat-input" rows="1" placeholder="' + (settings.input_placeholder || 'Type a message...').replace(/"/g, '&quot;') + '"></textarea>' +
         '<button class="er-chat-send" style="background:' + settings.primary_color + '" type="button" aria-label="Send">' +
         '<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>' +
         '</button>' +
@@ -237,9 +278,10 @@
 
   function bootstrap() {
     loadSettings(function () {
+      var delayMs = (settings.button_always_visible ? 0 : (settings.delay_seconds || 0)) * 1000;
       setTimeout(function () {
         renderLauncher();
-      }, (settings.delay_seconds || 0) * 1000);
+      }, delayMs);
     });
   }
 

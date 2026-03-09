@@ -89,10 +89,18 @@ router.get('/widget-settings', requireAuth, (req, res) => {
 
 router.put('/widget-settings', requireAuth, (req, res) => {
   const db = getDb();
-  const allowed = ['delay_seconds', 'welcome_text', 'primary_color', 'position'];
+  const allowed = [
+    'delay_seconds', 'welcome_text', 'primary_color', 'position',
+    'button_always_visible', 'button_style', 'button_label', 'header_title', 'input_placeholder',
+    'show_agent_name', 'agent_display_names'
+  ];
   const update = db.prepare('INSERT INTO widget_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
   for (const key of allowed) {
-    if (req.body[key] !== undefined) update.run(key, String(req.body[key]));
+    if (req.body[key] === undefined) continue;
+    const val = key === 'agent_display_names' && typeof req.body[key] === 'object'
+      ? JSON.stringify(req.body[key])
+      : String(req.body[key]);
+    update.run(key, val);
   }
   const rows = db.prepare('SELECT key, value FROM widget_settings').all();
   const settings = {};

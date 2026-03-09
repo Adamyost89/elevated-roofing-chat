@@ -80,10 +80,22 @@
       <div class="card">
         <h2 style="margin:0 0 16px;font-size:1.1rem">Widget settings</h2>
         <form class="settings-form" id="settings-form">
-          <label>Delay before showing chat (seconds)</label>
+          <label><input type="checkbox" name="button_always_visible" value="1" checked> Show chat button on page immediately (no delay)</label>
+          <label style="margin-top:8px">If unchecked: delay before showing chat button (seconds)</label>
           <input type="number" name="delay_seconds" min="0" max="60" value="3">
-          <label>Welcome text</label>
-          <input type="text" name="welcome_text" placeholder="Hi! How can we help?">
+          <label>Chat button style</label>
+          <select name="button_style">
+            <option value="icon_only">Icon only</option>
+            <option value="icon_and_text">Icon + text</option>
+          </select>
+          <label>Button label (when "Icon + text" is selected)</label>
+          <input type="text" name="button_label" placeholder="Chat">
+          <label>Header title (inside chat window)</label>
+          <input type="text" name="header_title" placeholder="Chat with us">
+          <label>Welcome message (shown when chat opens)</label>
+          <input type="text" name="welcome_text" placeholder="Hi! How can we help you today?">
+          <label>Input placeholder</label>
+          <input type="text" name="input_placeholder" placeholder="Type a message...">
           <label>Primary color</label>
           <input type="text" name="primary_color" placeholder="#2563eb">
           <label>Position</label>
@@ -91,6 +103,10 @@
             <option value="bottom-right">Bottom right</option>
             <option value="bottom-left">Bottom left</option>
           </select>
+          <hr style="margin:16px 0;border:0;border-top:1px solid #e2e8f0">
+          <label><input type="checkbox" name="show_agent_name" value="1" checked> Show &quot;Now chatting with [Name]&quot; when an agent replies</label>
+          <label style="margin-top:12px">Agent display names (one per line: <code>email=Display Name</code>, e.g. <code>adam@elevated-roofing.com=Adam</code>)</label>
+          <textarea name="agent_display_names" rows="4" placeholder="adam@elevated-roofing.com=Adam&#10;drew@elevated-roofing.com=Drew&#10;chris@elevated-roofing.com=Chris" style="width:100%;max-width:400px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;font-size:13px"></textarea>
           <button type="submit" class="btn btn-primary">Save settings</button>
         </form>
       </div>
@@ -197,24 +213,57 @@
           }
         }).catch(function() {});
       }
+      function parseAgentDisplayNames(text) {
+        var out = {};
+        (text || '').split('\n').forEach(function(line) {
+          line = line.trim();
+          var eq = line.indexOf('=');
+          if (eq > 0) {
+            var email = line.slice(0, eq).trim().toLowerCase();
+            var name = line.slice(eq + 1).trim();
+            if (email && name) out[email] = name;
+          }
+        });
+        return out;
+      }
+      function formatAgentDisplayNames(obj) {
+        return Object.keys(obj || {}).map(function(email) { return email + '=' + (obj[email] || ''); }).join('\n');
+      }
       function loadSettings() {
         api('/widget-settings').then(function(s) {
           var form = document.getElementById('settings-form');
           if (!form) return;
-          var d = form.querySelector('[name="delay_seconds"]'); if (d) d.value = s.delay_seconds != null ? s.delay_seconds : 3;
-          var w = form.querySelector('[name="welcome_text"]'); if (w) w.value = s.welcome_text || '';
-          var c = form.querySelector('[name="primary_color"]'); if (c) c.value = s.primary_color || '#2563eb';
-          var p = form.querySelector('[name="position"]'); if (p) p.value = s.position || 'bottom-right';
+          var set = function(name, val) { var el = form.querySelector('[name="' + name + '"]'); if (el) el.value = val != null ? val : ''; };
+          var setCheck = function(name, val) { var el = form.querySelector('[name="' + name + '"]'); if (el) el.checked = !!val; };
+          set('delay_seconds', s.delay_seconds != null ? s.delay_seconds : 3);
+          set('welcome_text', s.welcome_text || '');
+          set('primary_color', s.primary_color || '#2563eb');
+          set('position', s.position || 'bottom-right');
+          setCheck('button_always_visible', s.button_always_visible !== false);
+          set('button_style', s.button_style || 'icon_only');
+          set('button_label', s.button_label || 'Chat');
+          set('header_title', s.header_title || 'Chat with us');
+          set('input_placeholder', s.input_placeholder || 'Type a message...');
+          setCheck('show_agent_name', s.show_agent_name !== false);
+          set('agent_display_names', formatAgentDisplayNames(s.agent_display_names));
         });
       }
       document.getElementById('settings-form').addEventListener('submit', function(e) {
         e.preventDefault();
         var form = e.target;
+        var agentText = (form.querySelector('[name="agent_display_names"]') || {}).value || '';
         var body = {
           delay_seconds: parseInt((form.querySelector('[name="delay_seconds"]') || {}).value, 10) || 3,
           welcome_text: (form.querySelector('[name="welcome_text"]') || {}).value || '',
           primary_color: (form.querySelector('[name="primary_color"]') || {}).value || '#2563eb',
-          position: (form.querySelector('[name="position"]') || {}).value || 'bottom-right'
+          position: (form.querySelector('[name="position"]') || {}).value || 'bottom-right',
+          button_always_visible: (form.querySelector('[name="button_always_visible"]') || {}).checked ? '1' : '0',
+          button_style: (form.querySelector('[name="button_style"]') || {}).value || 'icon_only',
+          button_label: (form.querySelector('[name="button_label"]') || {}).value || 'Chat',
+          header_title: (form.querySelector('[name="header_title"]') || {}).value || 'Chat with us',
+          input_placeholder: (form.querySelector('[name="input_placeholder"]') || {}).value || 'Type a message...',
+          show_agent_name: (form.querySelector('[name="show_agent_name"]') || {}).checked ? '1' : '0',
+          agent_display_names: parseAgentDisplayNames(agentText)
         };
         api('/widget-settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function() { showError(''); }).catch(showError);
       });

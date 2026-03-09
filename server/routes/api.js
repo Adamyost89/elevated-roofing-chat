@@ -19,12 +19,22 @@ router.get('/widget-settings', (req, res) => {
   const rows = db.prepare('SELECT key, value FROM widget_settings').all();
   const settings = {};
   rows.forEach((r) => (settings[r.key] = r.value));
-  const { delay_seconds, welcome_text, primary_color, position } = settings;
+  let agent_display_names = {};
+  try {
+    if (settings.agent_display_names) agent_display_names = JSON.parse(settings.agent_display_names);
+  } catch (_) {}
   res.json({
-    delay_seconds: parseInt(delay_seconds || '3', 10),
-    welcome_text: welcome_text || 'Hi! How can we help you today?',
-    primary_color: primary_color || '#2563eb',
-    position: position || 'bottom-right',
+    delay_seconds: parseInt(settings.delay_seconds || '3', 10),
+    welcome_text: settings.welcome_text || 'Hi! How can we help you today?',
+    primary_color: settings.primary_color || '#2563eb',
+    position: settings.position || 'bottom-right',
+    button_always_visible: settings.button_always_visible === '1' || settings.button_always_visible === 'true',
+    button_style: settings.button_style || 'icon_only',
+    button_label: settings.button_label || 'Chat',
+    header_title: settings.header_title || 'Chat with us',
+    input_placeholder: settings.input_placeholder || 'Type a message...',
+    show_agent_name: settings.show_agent_name === '1' || settings.show_agent_name === 'true',
+    agent_display_names: agent_display_names,
   });
 });
 

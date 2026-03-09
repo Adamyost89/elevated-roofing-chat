@@ -138,16 +138,17 @@ BASE_URL=https://chat.elevatedroofingandsiding.com
 GOOGLE_CHAT_SPACE_ID=AAQAJjD8_Ho
 GOOGLE_CLIENT_ID=123456789-xxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxx
-ALLOWED_ADMIN_EMAILS=
+ALLOWED_ADMIN_EMAILS=adam@elevated-roofing.com,drew@elevated-roofing.com,chris@elevated-roofing.com
 ALLOWED_ADMIN_DOMAIN=elevatedroofingandsiding.com
 SESSION_SECRET=your-long-random-string-here
-CHAT_POLL_INTERVAL_MS=15000
+CHAT_POLL_INTERVAL_MS=3000
 ```
 
 - **GOOGLE_CLIENT_ID** and **GOOGLE_CLIENT_SECRET**: from step 2.2.
-- **ALLOWED_ADMIN_EMAILS**: leave empty to allow any signed-in user, or comma-separated emails, e.g. `adam@elevatedroofingandsiding.com,jane@elevatedroofingandsiding.com`.
+- **ALLOWED_ADMIN_EMAILS**: comma-separated emails of agents who can log in and reply (e.g. Adam, Drew, Chris). Leave empty to allow any user from the domain.
 - **ALLOWED_ADMIN_DOMAIN**: e.g. `elevatedroofingandsiding.com` so only that domain can sign in (recommended).
 - **SESSION_SECRET**: any long random string (e.g. run `openssl rand -hex 32` on the server and paste the result).
+- **CHAT_POLL_INTERVAL_MS**: how often to check Google Chat for new replies (default 3000 ms). Lower = faster sync; don’t go below 2000.
 
 Save and exit (Ctrl+O, Enter, Ctrl+X).
 

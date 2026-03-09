@@ -40,6 +40,19 @@
   bottom: 24px;
   left: 24px;
 }
+.er-chat-launcher.er-chat-launcher-with-text {
+  width: auto;
+  padding: 0 18px;
+  border-radius: 28px;
+}
+.er-chat-launcher.er-chat-launcher-with-text svg {
+  margin-right: 8px;
+}
+.er-chat-launcher-label {
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+}
 .er-chat-window {
   position: fixed;
   width: 380px;
@@ -97,10 +110,21 @@
   margin-right: 0;
   color: #fff;
 }
+.er-chat-msg-text {
+  display: block;
+  margin-bottom: 2px;
+}
 .er-chat-msg-time {
   font-size: 11px;
   opacity: 0.8;
-  margin-top: 4px;
+  margin-top: 8px;
+  display: block;
+}
+.er-chat-agent-joined {
+  text-align: center;
+  font-size: 12px;
+  color: #64748b;
+  margin: 8px 0;
 }
 .er-chat-input-area {
   padding: 12px;

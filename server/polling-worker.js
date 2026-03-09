@@ -1,7 +1,7 @@
 const { getDb } = require('./db');
 const { listMessages, SPACE_ID } = require('./google-chat');
 
-const POLL_MS = parseInt(process.env.CHAT_POLL_INTERVAL_MS || '15000', 10);
+const POLL_MS = Math.max(2000, parseInt(process.env.CHAT_POLL_INTERVAL_MS || '3000', 10));
 let wssRef = null;
 let lastKnownIds = new Set();
 
