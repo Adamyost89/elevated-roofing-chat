@@ -181,7 +181,8 @@
           (d.conversations || []).forEach(function(c) {
             var li = document.createElement('li');
             var replied = c.last_reply_by ? '<span class="badge">Replied</span>' : '<span class="badge unreplied">No reply</span>';
-            li.innerHTML = '<div><a href="#" data-id="' + c.id + '">' + (c.visitor_id || c.id).slice(0, 12) + '...</a> ' + replied + '<br><span class="meta">' + (c.last_message_at ? new Date(c.last_message_at).toLocaleString() : '') + (c.last_reply_by ? ' · ' + c.last_reply_by : '') + '</span></div>';
+            var label = c.display_number ? 'Chat #' + c.display_number : (c.visitor_id || c.id).slice(0, 12) + '...';
+            li.innerHTML = '<div><a href="#" data-id="' + c.id + '">' + label + '</a> ' + replied + '<br><span class="meta">' + (c.last_message_at ? new Date(c.last_message_at).toLocaleString() : '') + (c.last_reply_by ? ' · ' + c.last_reply_by : '') + '</span></div>';
             li.querySelector('a').onclick = function(e) { e.preventDefault(); openConversation(c.id); };
             list.appendChild(li);
           });
@@ -194,7 +195,8 @@
         document.getElementById('conv-meta').textContent = 'Conversation ' + id;
         document.getElementById('reply-text').value = '';
         api('/conversations/' + id).then(function(c) {
-          document.getElementById('conv-meta').textContent = 'Visitor: ' + (c.visitor_id || id) + ' · Started ' + (c.created_at ? new Date(c.created_at).toLocaleString() : '');
+          var header = c.display_number ? 'Website chat #' + c.display_number + ' · ' : '';
+          document.getElementById('conv-meta').textContent = header + 'Visitor: ' + (c.visitor_id || id) + ' · Started ' + (c.created_at ? new Date(c.created_at).toLocaleString() : '');
           var contactEl = document.getElementById('conv-contact');
           if (contactEl) {
             if (c.contact_email || c.contact_phone) {

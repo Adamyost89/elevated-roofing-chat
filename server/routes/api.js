@@ -7,11 +7,12 @@ const router = express.Router();
 
 function getOrCreateConversation(visitorId) {
   const db = getDb();
-  let row = db.prepare('SELECT id, thread_name FROM conversations WHERE visitor_id = ? ORDER BY created_at DESC LIMIT 1').get(visitorId);
+  let row = db.prepare('SELECT id, thread_name, display_number FROM conversations WHERE visitor_id = ? ORDER BY created_at DESC LIMIT 1').get(visitorId);
   if (row) return row;
   const id = uuidv4();
-  db.prepare('INSERT INTO conversations (id, visitor_id) VALUES (?, ?)').run(id, visitorId);
-  return { id, thread_name: null };
+  const nextNum = db.prepare('SELECT COALESCE(MAX(display_number), 0) + 1 AS n FROM conversations').get();
+  db.prepare('INSERT INTO conversations (id, visitor_id, display_number) VALUES (?, ?, ?)').run(id, visitorId, nextNum.n);
+  return { id, thread_name: null, display_number: nextNum.n };
 }
 
 router.get('/widget-settings', (req, res) => {
@@ -70,17 +71,28 @@ router.post('/conversations/:id/messages', async (req, res) => {
   if (!body) return res.status(400).json({ error: 'Message body required' });
 
   const db = getDb();
-  const conv = db.prepare('SELECT id, thread_name FROM conversations WHERE id = ?').get(id);
+  let conv = db.prepare('SELECT id, thread_name, display_number FROM conversations WHERE id = ?').get(id);
   if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+  if (!conv.display_number) {
+    const nextNum = db.prepare('SELECT COALESCE(MAX(display_number), 0) + 1 AS n FROM conversations').get();
+    db.prepare('UPDATE conversations SET display_number = ? WHERE id = ?').run(nextNum.n, id);
+    conv = { ...conv, display_number: nextNum.n };
+  }
 
   db.prepare('INSERT INTO messages (conversation_id, sender_type, body) VALUES (?, ?, ?)').run(id, 'visitor', body);
 
   try {
-    const created = await postMessageToThread(id, body, true);
-    const threadName = created?.thread?.name || created?.threadName || `spaces/${require('../google-chat').SPACE_ID}/threads/${id}`;
     if (!conv.thread_name) {
+      const num = conv.display_number || 1;
+      const label = `Website chat #${num}`;
+      const created = await postMessageToThread(id, label, true);
+      const threadName = created?.thread?.name || created?.threadName || `spaces/${require('../google-chat').SPACE_ID}/threads/${id}`;
       db.prepare('UPDATE conversations SET thread_name = ? WHERE id = ?').run(threadName, id);
       console.log('Chat: saved thread_name for', id, '->', threadName);
+      await postMessageToThread(id, body, true);
+    } else {
+      await postMessageToThread(id, body, true);
     }
   } catch (err) {
     console.error('Google Chat post failed:', err.message);
@@ -101,12 +113,18 @@ router.post('/conversations/:id/contact', async (req, res) => {
   if (!email && !phone) return res.status(400).json({ error: 'Email or phone required' });
 
   const db = getDb();
-  const conv = db.prepare('SELECT id, thread_name FROM conversations WHERE id = ?').get(id);
+  let conv = db.prepare('SELECT id, thread_name, display_number FROM conversations WHERE id = ?').get(id);
   if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+  if (!conv.display_number) {
+    const nextNum = db.prepare('SELECT COALESCE(MAX(display_number), 0) + 1 AS n FROM conversations').get();
+    db.prepare('UPDATE conversations SET display_number = ? WHERE id = ?').run(nextNum.n, id);
+    conv = { ...conv, display_number: nextNum.n };
+  }
 
   db.prepare('UPDATE conversations SET contact_name = ?, contact_email = ?, contact_phone = ? WHERE id = ?').run(name || null, email || null, phone || null, id);
 
-  const summary = ['Visitor left contact info:'].concat(
+  const prefix = conv.display_number ? `Website chat #${conv.display_number} — ` : '';
+  const summary = [prefix + 'Visitor left contact info:'].concat(
     name ? ['Name: ' + name] : [],
     email ? ['Email: ' + email] : [],
     phone ? ['Phone: ' + phone] : []

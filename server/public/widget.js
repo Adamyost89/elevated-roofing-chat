@@ -56,6 +56,7 @@
   var windowIsOpen = false;
   var followupTimer = null;
   var contactSubmitted = false;
+  var hasAgentReplied = false;
 
   function getCookie(name) {
     var m = document.cookie.match(new RegExp('(?:^| )' + name + '=([^;]+)'));
@@ -192,13 +193,14 @@
             if (agentMsgs.length > 0) {
               var last = (agentMsgs[agentMsgs.length - 1].agent_email || '').toLowerCase();
               lastShownAgentKey = last || null;
+              hasAgentReplied = true;
             }
             if ((d.messages || []).length > 0) {
               var w = list.querySelector('.er-chat-welcome');
               if (w) w.style.display = 'none';
             }
             var lastMsg = (d.messages || [])[(d.messages || []).length - 1];
-            if (lastMsg && lastMsg.sender_type === 'visitor' && settings.followup_enabled && !contactSubmitted) scheduleFollowupTimer();
+            if (lastMsg && lastMsg.sender_type === 'visitor' && settings.followup_enabled && !contactSubmitted && !hasAgentReplied) scheduleFollowupTimer();
           }
         } catch (e) {}
       }
@@ -218,7 +220,7 @@
         try {
           var d = JSON.parse(xhr.responseText);
           if (d.message) appendMessage(d.message);
-          if (settings.followup_enabled && !contactSubmitted) scheduleFollowupTimer();
+          if (settings.followup_enabled && !contactSubmitted && !hasAgentReplied) scheduleFollowupTimer();
         } catch (e) {}
       }
     };
@@ -228,11 +230,11 @@
   function scheduleFollowupTimer() {
     if (followupTimer) clearTimeout(followupTimer);
     followupTimer = null;
-    if (!settings.followup_enabled || contactSubmitted) return;
+    if (!settings.followup_enabled || contactSubmitted || hasAgentReplied) return;
     var delayMs = (settings.followup_delay_minutes || 2) * 60 * 1000;
     followupTimer = setTimeout(function () {
       followupTimer = null;
-      if (contactSubmitted) return;
+      if (contactSubmitted || hasAgentReplied) return;
       var box = root.querySelector('.er-chat-followup');
       if (box) box.classList.add('er-chat-followup-visible');
     }, delayMs);
@@ -316,7 +318,10 @@
       var origAppend = appendMessage;
       appendMessage = function (msg) {
         onNewMessage();
-        if (msg.sender_type === 'agent') cancelFollowupTimer();
+        if (msg.sender_type === 'agent') {
+          hasAgentReplied = true;
+          cancelFollowupTimer();
+        }
         origAppend(msg);
       };
       if (messages && messages.children.length > 0) onNewMessage();

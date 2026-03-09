@@ -61,6 +61,11 @@ function initDb() {
       if (!/duplicate column/i.test(e.message)) throw e;
     }
   });
+  try {
+    db.exec('ALTER TABLE conversations ADD COLUMN display_number INTEGER');
+  } catch (e) {
+    if (!/duplicate column/i.test(e.message)) throw e;
+  }
 
   const row = db.prepare("SELECT value FROM widget_settings WHERE key = 'initialized'").get();
   if (!row) {

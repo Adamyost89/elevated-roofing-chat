@@ -33,7 +33,7 @@ router.get('/conversations', requireAuth, (req, res) => {
   const db = getDb();
   const list = db
     .prepare(
-      `SELECT c.id, c.visitor_id, c.created_at, c.thread_name,
+      `SELECT c.id, c.visitor_id, c.display_number, c.created_at, c.thread_name,
         (SELECT body FROM messages WHERE conversation_id = c.id ORDER BY id DESC LIMIT 1) AS last_message,
         (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY id DESC LIMIT 1) AS last_message_at,
         (SELECT agent_email FROM messages WHERE conversation_id = c.id AND sender_type = 'agent' ORDER BY id DESC LIMIT 1) AS last_reply_by,
@@ -47,7 +47,7 @@ router.get('/conversations', requireAuth, (req, res) => {
 
 router.get('/conversations/:id', requireAuth, (req, res) => {
   const db = getDb();
-  const conv = db.prepare('SELECT id, visitor_id, created_at, thread_name, contact_name, contact_email, contact_phone FROM conversations WHERE id = ?').get(req.params.id);
+  const conv = db.prepare('SELECT id, visitor_id, display_number, created_at, thread_name, contact_name, contact_email, contact_phone FROM conversations WHERE id = ?').get(req.params.id);
   if (!conv) return res.status(404).json({ error: 'Not found' });
   const messages = db
     .prepare('SELECT id, conversation_id, sender_type, body, agent_email, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC')
