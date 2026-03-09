@@ -107,6 +107,24 @@
           <label><input type="checkbox" name="show_agent_name" value="1" checked> Show &quot;Now chatting with [Name]&quot; when an agent replies</label>
           <label style="margin-top:12px">Agent display names (one per line: <code>email=Display Name</code>, e.g. <code>adam@elevated-roofing.com=Adam</code>)</label>
           <textarea name="agent_display_names" rows="4" placeholder="adam@elevated-roofing.com=Adam&#10;drew@elevated-roofing.com=Drew&#10;chris@elevated-roofing.com=Chris" style="width:100%;max-width:400px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;font-size:13px"></textarea>
+          <hr style="margin:16px 0;border:0;border-top:1px solid #e2e8f0">
+          <h3 style="margin:0 0 10px;font-size:1rem">No-reply follow-up form</h3>
+          <p style="margin:0 0 12px;color:#64748b;font-size:13px">If the visitor gets no agent reply for a set time, show a form to collect name and email or phone so you can follow up.</p>
+          <label><input type="checkbox" name="followup_enabled" value="1" checked> Enable follow-up form</label>
+          <label style="margin-top:8px">Show form after no reply for (minutes)</label>
+          <input type="number" name="followup_delay_minutes" min="1" max="60" value="2">
+          <label>Form title</label>
+          <input type="text" name="followup_title" placeholder="We'll get back to you">
+          <label>Form message</label>
+          <input type="text" name="followup_message" placeholder="Leave your name and email or phone so we can reach you.">
+          <label>Name placeholder</label>
+          <input type="text" name="followup_name_placeholder" placeholder="Name">
+          <label>Email placeholder</label>
+          <input type="text" name="followup_email_placeholder" placeholder="Email">
+          <label>Phone placeholder</label>
+          <input type="text" name="followup_phone_placeholder" placeholder="Phone">
+          <label>Submit button label</label>
+          <input type="text" name="followup_submit_label" placeholder="Send">
           <button type="submit" class="btn btn-primary">Save settings</button>
         </form>
       </div>
@@ -246,6 +264,14 @@
           set('input_placeholder', s.input_placeholder || 'Type a message...');
           setCheck('show_agent_name', s.show_agent_name !== false);
           set('agent_display_names', formatAgentDisplayNames(s.agent_display_names));
+          setCheck('followup_enabled', s.followup_enabled === '1' || s.followup_enabled === 'true');
+          set('followup_delay_minutes', s.followup_delay_minutes != null ? s.followup_delay_minutes : 2);
+          set('followup_title', s.followup_title || "We'll get back to you");
+          set('followup_message', s.followup_message || 'Leave your name and email or phone so we can reach you.');
+          set('followup_name_placeholder', s.followup_name_placeholder || 'Name');
+          set('followup_email_placeholder', s.followup_email_placeholder || 'Email');
+          set('followup_phone_placeholder', s.followup_phone_placeholder || 'Phone');
+          set('followup_submit_label', s.followup_submit_label || 'Send');
         });
       }
       document.getElementById('settings-form').addEventListener('submit', function(e) {
@@ -263,7 +289,15 @@
           header_title: (form.querySelector('[name="header_title"]') || {}).value || 'Chat with us',
           input_placeholder: (form.querySelector('[name="input_placeholder"]') || {}).value || 'Type a message...',
           show_agent_name: (form.querySelector('[name="show_agent_name"]') || {}).checked ? '1' : '0',
-          agent_display_names: parseAgentDisplayNames(agentText)
+          agent_display_names: parseAgentDisplayNames(agentText),
+          followup_enabled: (form.querySelector('[name="followup_enabled"]') || {}).checked ? '1' : '0',
+          followup_delay_minutes: parseInt((form.querySelector('[name="followup_delay_minutes"]') || {}).value, 10) || 2,
+          followup_title: (form.querySelector('[name="followup_title"]') || {}).value || "We'll get back to you",
+          followup_message: (form.querySelector('[name="followup_message"]') || {}).value || 'Leave your name and email or phone so we can reach you.',
+          followup_name_placeholder: (form.querySelector('[name="followup_name_placeholder"]') || {}).value || 'Name',
+          followup_email_placeholder: (form.querySelector('[name="followup_email_placeholder"]') || {}).value || 'Email',
+          followup_phone_placeholder: (form.querySelector('[name="followup_phone_placeholder"]') || {}).value || 'Phone',
+          followup_submit_label: (form.querySelector('[name="followup_submit_label"]') || {}).value || 'Send'
         };
         api('/widget-settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function() { showError(''); }).catch(showError);
       });

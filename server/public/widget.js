@@ -40,9 +40,21 @@
     header_title: 'Chat with us',
     input_placeholder: 'Type a message...',
     show_agent_name: true,
-    agent_display_names: {}
+    agent_display_names: {},
+    followup_enabled: true,
+    followup_delay_minutes: 2,
+    followup_title: "We'll get back to you",
+    followup_message: 'Leave your name and email or phone so we can reach you.',
+    followup_name_placeholder: 'Name',
+    followup_email_placeholder: 'Email',
+    followup_phone_placeholder: 'Phone',
+    followup_submit_label: 'Send'
   };
-  var lastShownAgentEmail = null;
+  var lastShownAgentKey = null;
+  var autoOpenTimer = null;
+  var windowIsOpen = false;
+  var followupTimer = null;
+  var contactSubmitted = false;
 
   function getCookie(name) {
     var m = document.cookie.match(new RegExp('(?:^| )' + name + '=([^;]+)'));
@@ -69,6 +81,14 @@
           settings.input_placeholder = s.input_placeholder || 'Type a message...';
           settings.show_agent_name = s.show_agent_name !== false;
           settings.agent_display_names = s.agent_display_names || {};
+          settings.followup_enabled = s.followup_enabled !== false;
+          settings.followup_delay_minutes = Math.max(1, parseInt(s.followup_delay_minutes, 10) || 2);
+          settings.followup_title = s.followup_title || settings.followup_title;
+          settings.followup_message = s.followup_message || settings.followup_message;
+          settings.followup_name_placeholder = s.followup_name_placeholder || 'Name';
+          settings.followup_email_placeholder = s.followup_email_placeholder || 'Email';
+          settings.followup_phone_placeholder = s.followup_phone_placeholder || 'Phone';
+          settings.followup_submit_label = s.followup_submit_label || 'Send';
         } catch (e) {}
       }
       if (typeof cb === 'function') cb();
@@ -127,13 +147,15 @@
     if (!list) return;
     if (msg.id && list.querySelector('[data-msg-id="' + msg.id + '"]')) return;
     if (msg.sender_type === 'agent' && settings.show_agent_name) {
-      var agentEmail = (msg.agent_email || '').toLowerCase();
-      var displayName = getAgentDisplayName(agentEmail) || getAgentDisplayName(msg.agent_email);
-      if (displayName && agentEmail !== lastShownAgentEmail) {
-        lastShownAgentEmail = agentEmail;
+      var raw = (msg.agent_email || '').toLowerCase();
+      var mapped = getAgentDisplayName(raw) || getAgentDisplayName(msg.agent_email);
+      var label = mapped || (msg.agent_email ? String(msg.agent_email).split('@')[0] : '') || 'our team';
+      var key = raw || label.toLowerCase();
+      if (label && key !== lastShownAgentKey) {
+        lastShownAgentKey = key;
         var joined = document.createElement('div');
         joined.className = 'er-chat-agent-joined';
-        joined.textContent = 'Now chatting with ' + displayName;
+        joined.textContent = 'Now chatting with ' + label;
         list.appendChild(joined);
       }
     }
@@ -143,7 +165,8 @@
     div.style.backgroundColor = msg.sender_type === 'agent' ? settings.primary_color : '';
     div.innerHTML = '<span class="er-chat-msg-text"></span><span class="er-chat-msg-time"></span>';
     div.querySelector('.er-chat-msg-text').textContent = msg.body || '';
-    div.querySelector('.er-chat-msg-time').textContent = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    var dt = msg.created_at ? new Date(String(msg.created_at).replace(' ', 'T') + 'Z') : null;
+    div.querySelector('.er-chat-msg-time').textContent = dt ? dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
     list.appendChild(div);
     list.scrollTop = list.scrollHeight;
   }
@@ -161,14 +184,19 @@
           var list = root.querySelector('.er-chat-messages');
           if (list) {
             list.innerHTML = '<div class="er-chat-welcome">' + (settings.welcome_text || '') + '</div>';
-            lastShownAgentEmail = null;
+            lastShownAgentKey = null;
             (d.messages || []).forEach(appendMessage);
             var agentMsgs = (d.messages || []).filter(function(m) { return m.sender_type === 'agent' && m.agent_email; });
-            if (agentMsgs.length > 0) lastShownAgentEmail = (agentMsgs[agentMsgs.length - 1].agent_email || '').toLowerCase();
+            if (agentMsgs.length > 0) {
+              var last = (agentMsgs[agentMsgs.length - 1].agent_email || '').toLowerCase();
+              lastShownAgentKey = last || null;
+            }
             if ((d.messages || []).length > 0) {
               var w = list.querySelector('.er-chat-welcome');
               if (w) w.style.display = 'none';
             }
+            var lastMsg = (d.messages || [])[(d.messages || []).length - 1];
+            if (lastMsg && lastMsg.sender_type === 'visitor' && settings.followup_enabled && !contactSubmitted) scheduleFollowupTimer();
           }
         } catch (e) {}
       }
@@ -188,10 +216,33 @@
         try {
           var d = JSON.parse(xhr.responseText);
           if (d.message) appendMessage(d.message);
+          if (settings.followup_enabled && !contactSubmitted) scheduleFollowupTimer();
         } catch (e) {}
       }
     };
     xhr.send(JSON.stringify({ body: body.trim() }));
+  }
+
+  function scheduleFollowupTimer() {
+    if (followupTimer) clearTimeout(followupTimer);
+    followupTimer = null;
+    if (!settings.followup_enabled || contactSubmitted) return;
+    var delayMs = (settings.followup_delay_minutes || 2) * 60 * 1000;
+    followupTimer = setTimeout(function () {
+      followupTimer = null;
+      if (contactSubmitted) return;
+      var box = root.querySelector('.er-chat-followup');
+      if (box) box.classList.add('er-chat-followup-visible');
+    }, delayMs);
+  }
+
+  function cancelFollowupTimer() {
+    if (followupTimer) {
+      clearTimeout(followupTimer);
+      followupTimer = null;
+    }
+    var box = root.querySelector('.er-chat-followup');
+    if (box) box.classList.remove('er-chat-followup-visible');
   }
 
   function renderLauncher() {
@@ -210,17 +261,38 @@
 
   function showWindow() {
     if (root.querySelector('.er-chat-window')) return;
+    windowIsOpen = true;
+    if (autoOpenTimer) {
+      clearTimeout(autoOpenTimer);
+      autoOpenTimer = null;
+    }
     ensureConversation(function () {
       connectWs();
       loadMessages();
       var wrap = document.createElement('div');
       wrap.className = 'er-chat-window ' + settings.position;
+      var followupTitle = (settings.followup_title || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      var followupMessage = (settings.followup_message || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      var followupNamePh = (settings.followup_name_placeholder || 'Name').replace(/"/g, '&quot;');
+      var followupEmailPh = (settings.followup_email_placeholder || 'Email').replace(/"/g, '&quot;');
+      var followupPhonePh = (settings.followup_phone_placeholder || 'Phone').replace(/"/g, '&quot;');
+      var followupSubmitLabel = (settings.followup_submit_label || 'Send').replace(/</g, '&lt;').replace(/"/g, '&quot;');
       wrap.innerHTML =
         '<div class="er-chat-header" style="background:' + settings.primary_color + '">' +
         '<h3>' + (settings.header_title || 'Chat with us').replace(/</g, '&lt;') + '</h3>' +
         '</div>' +
         '<div class="er-chat-messages">' +
         '<div class="er-chat-welcome">' + (settings.welcome_text || '').replace(/</g, '&lt;') + '</div>' +
+        '</div>' +
+        '<div class="er-chat-followup" aria-hidden="true">' +
+        '<div class="er-chat-followup-title">' + followupTitle + '</div>' +
+        '<div class="er-chat-followup-message">' + followupMessage + '</div>' +
+        '<input type="text" class="er-chat-followup-name" placeholder="' + followupNamePh + '" />' +
+        '<input type="email" class="er-chat-followup-email" placeholder="' + followupEmailPh + '" />' +
+        '<input type="tel" class="er-chat-followup-phone" placeholder="' + followupPhonePh + '" />' +
+        '<div class="er-chat-followup-error"></div>' +
+        '<button type="button" class="er-chat-followup-submit" style="background:' + settings.primary_color + '">' + followupSubmitLabel + '</button>' +
+        '<div class="er-chat-followup-thanks" style="display:none">Thanks! We\'ll be in touch.</div>' +
         '</div>' +
         '<div class="er-chat-input-area">' +
         '<div class="er-chat-input-row">' +
@@ -242,6 +314,7 @@
       var origAppend = appendMessage;
       appendMessage = function (msg) {
         onNewMessage();
+        if (msg.sender_type === 'agent') cancelFollowupTimer();
         origAppend(msg);
       };
       if (messages && messages.children.length > 0) onNewMessage();
@@ -261,6 +334,51 @@
 
       root.appendChild(wrap);
 
+      var followupBox = wrap.querySelector('.er-chat-followup');
+      if (followupBox && settings.followup_enabled) {
+        var followupEmail = followupBox.querySelector('.er-chat-followup-email');
+        var followupPhone = followupBox.querySelector('.er-chat-followup-phone');
+        var followupName = followupBox.querySelector('.er-chat-followup-name');
+        var followupError = followupBox.querySelector('.er-chat-followup-error');
+        var followupThanks = followupBox.querySelector('.er-chat-followup-thanks');
+        var followupSubmitBtn = followupBox.querySelector('.er-chat-followup-submit');
+        followupSubmitBtn.addEventListener('click', function () {
+          var email = (followupEmail && followupEmail.value || '').trim();
+          var phone = (followupPhone && followupPhone.value || '').trim();
+          if (!email && !phone) {
+            if (followupError) followupError.textContent = 'Please enter your email or phone.';
+            return;
+          }
+          if (followupError) followupError.textContent = '';
+          followupSubmitBtn.disabled = true;
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', BASE + '/api/conversations/' + encodeURIComponent(conversationId) + '/contact', true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.withCredentials = true;
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            contactSubmitted = true;
+            if (xhr.status === 200) {
+              followupBox.querySelector('.er-chat-followup-title').style.display = 'none';
+              followupBox.querySelector('.er-chat-followup-message').style.display = 'none';
+              followupEmail.style.display = 'none';
+              followupPhone.style.display = 'none';
+              followupName.style.display = 'none';
+              followupSubmitBtn.style.display = 'none';
+              if (followupThanks) followupThanks.style.display = 'block';
+            } else {
+              if (followupError) followupError.textContent = 'Something went wrong. Please try again.';
+              followupSubmitBtn.disabled = false;
+            }
+          };
+          xhr.send(JSON.stringify({
+            name: followupName ? followupName.value.trim() : '',
+            email: email,
+            phone: phone
+          }));
+        });
+      }
+
       var launcher = root.querySelector('.er-chat-launcher');
       var closeBtn = document.createElement('button');
       closeBtn.style.cssText = 'position:absolute;top:8px;right:8px;background:transparent;border:none;color:white;cursor:pointer;font-size:20px;line-height:1;padding:4px;';
@@ -269,6 +387,7 @@
       closeBtn.onclick = function () {
         wrap.remove();
         if (launcher) launcher.style.display = 'flex';
+        windowIsOpen = false;
       };
       header.appendChild(closeBtn);
 
@@ -278,10 +397,19 @@
 
   function bootstrap() {
     loadSettings(function () {
-      var delayMs = (settings.button_always_visible ? 0 : (settings.delay_seconds || 0)) * 1000;
-      setTimeout(function () {
+      if (settings.button_always_visible) {
         renderLauncher();
-      }, delayMs);
+        if (settings.delay_seconds && settings.delay_seconds > 0) {
+          autoOpenTimer = setTimeout(function () {
+            if (!windowIsOpen) showWindow();
+          }, (settings.delay_seconds || 0) * 1000);
+        }
+      } else {
+        var delayMs = (settings.delay_seconds || 0) * 1000;
+        setTimeout(function () {
+          renderLauncher();
+        }, delayMs);
+      }
     });
   }
 

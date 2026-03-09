@@ -54,6 +54,14 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_conversations_visitor ON conversations(visitor_id);
   `);
 
+  ['contact_name', 'contact_email', 'contact_phone'].forEach((col) => {
+    try {
+      db.exec(`ALTER TABLE conversations ADD COLUMN ${col} TEXT`);
+    } catch (e) {
+      if (!/duplicate column/i.test(e.message)) throw e;
+    }
+  });
+
   const row = db.prepare("SELECT value FROM widget_settings WHERE key = 'initialized'").get();
   if (!row) {
     const insert = db.prepare("INSERT INTO widget_settings (key, value) VALUES (?, ?)");
@@ -69,6 +77,14 @@ function initDb() {
     insert.run('input_placeholder', 'Type a message...');
     insert.run('show_agent_name', '1');
     insert.run('agent_display_names', '{}');
+    insert.run('followup_enabled', '1');
+    insert.run('followup_delay_minutes', '2');
+    insert.run('followup_title', "We'll get back to you");
+    insert.run('followup_message', 'Leave your name and email or phone so we can reach you.');
+    insert.run('followup_name_placeholder', 'Name');
+    insert.run('followup_email_placeholder', 'Email');
+    insert.run('followup_phone_placeholder', 'Phone');
+    insert.run('followup_submit_label', 'Send');
   }
 }
 

@@ -35,6 +35,14 @@ router.get('/widget-settings', (req, res) => {
     input_placeholder: settings.input_placeholder || 'Type a message...',
     show_agent_name: settings.show_agent_name === '1' || settings.show_agent_name === 'true',
     agent_display_names: agent_display_names,
+    followup_enabled: settings.followup_enabled === '1' || settings.followup_enabled === 'true',
+    followup_delay_minutes: Math.max(1, parseInt(settings.followup_delay_minutes || '2', 10)),
+    followup_title: settings.followup_title || "We'll get back to you",
+    followup_message: settings.followup_message || 'Leave your name and email or phone so we can reach you.',
+    followup_name_placeholder: settings.followup_name_placeholder || 'Name',
+    followup_email_placeholder: settings.followup_email_placeholder || 'Email',
+    followup_phone_placeholder: settings.followup_phone_placeholder || 'Phone',
+    followup_submit_label: settings.followup_submit_label || 'Send',
   });
 });
 
@@ -82,6 +90,34 @@ router.post('/conversations/:id/messages', async (req, res) => {
     req.app.get('wss')?.broadcastToConversation(id, { type: 'new_message', message: row });
   }
   res.json({ message: row });
+});
+
+router.post('/conversations/:id/contact', async (req, res) => {
+  const { id } = req.params;
+  const name = (req.body?.name || '').trim();
+  const email = (req.body?.email || '').trim();
+  const phone = (req.body?.phone || '').trim();
+  if (!email && !phone) return res.status(400).json({ error: 'Email or phone required' });
+
+  const db = getDb();
+  const conv = db.prepare('SELECT id, thread_name FROM conversations WHERE id = ?').get(id);
+  if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+  db.prepare('UPDATE conversations SET contact_name = ?, contact_email = ?, contact_phone = ? WHERE id = ?').run(name || null, email || null, phone || null, id);
+
+  const summary = ['Visitor left contact info:'].concat(
+    name ? ['Name: ' + name] : [],
+    email ? ['Email: ' + email] : [],
+    phone ? ['Phone: ' + phone] : []
+  ).join('\n');
+
+  try {
+    await postMessageToThread(id, summary, true);
+  } catch (err) {
+    console.error('Google Chat contact post failed:', err.message);
+  }
+
+  res.json({ ok: true });
 });
 
 module.exports = router;
