@@ -82,6 +82,7 @@ function initDb() {
     insert.run('header_title', 'Chat with us');
     insert.run('input_placeholder', 'Type a message...');
     insert.run('show_agent_name', '1');
+    insert.run('sound_enabled', '1');
     insert.run('agent_display_names', '{}');
     insert.run('followup_enabled', '1');
     insert.run('followup_delay_minutes', '2');

@@ -92,7 +92,7 @@ router.put('/widget-settings', requireAuth, (req, res) => {
   const allowed = [
     'delay_seconds', 'chatbox_popup_delay_seconds', 'welcome_text', 'primary_color', 'position',
     'button_always_visible', 'button_style', 'button_label', 'header_title', 'input_placeholder',
-    'show_agent_name', 'agent_display_names',
+    'show_agent_name', 'sound_enabled', 'agent_display_names',
     'followup_enabled', 'followup_delay_minutes', 'followup_title', 'followup_message',
     'followup_name_placeholder', 'followup_email_placeholder', 'followup_phone_placeholder', 'followup_submit_label'
   ];

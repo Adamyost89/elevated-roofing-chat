@@ -108,6 +108,7 @@
           </select>
           <hr style="margin:16px 0;border:0;border-top:1px solid #e2e8f0">
           <label><input type="checkbox" name="show_agent_name" value="1" checked> Show &quot;Now chatting with [Name]&quot; when an agent replies</label>
+          <label style="margin-top:8px"><input type="checkbox" name="sound_enabled" value="1" checked> Play sound when visitor receives a message</label>
           <label style="margin-top:12px">Agent display names (one per line: <code>email=Display Name</code>, e.g. <code>adam@elevated-roofing.com=Adam</code>)</label>
           <textarea name="agent_display_names" rows="4" placeholder="adam@elevated-roofing.com=Adam&#10;drew@elevated-roofing.com=Drew&#10;chris@elevated-roofing.com=Chris" style="width:100%;max-width:400px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;font-size:13px"></textarea>
           <hr style="margin:16px 0;border:0;border-top:1px solid #e2e8f0">
@@ -280,6 +281,7 @@
           set('header_title', s.header_title || 'Chat with us');
           set('input_placeholder', s.input_placeholder || 'Type a message...');
           setCheck('show_agent_name', s.show_agent_name !== false);
+          setCheck('sound_enabled', s.sound_enabled !== '0' && s.sound_enabled !== 'false');
           var agentNames = s.agent_display_names;
           if (typeof agentNames === 'string') {
             try { agentNames = JSON.parse(agentNames); } catch (e) { agentNames = {}; }
@@ -311,6 +313,7 @@
           header_title: (form.querySelector('[name="header_title"]') || {}).value || 'Chat with us',
           input_placeholder: (form.querySelector('[name="input_placeholder"]') || {}).value || 'Type a message...',
           show_agent_name: (form.querySelector('[name="show_agent_name"]') || {}).checked ? '1' : '0',
+          sound_enabled: (form.querySelector('[name="sound_enabled"]') || {}).checked ? '1' : '0',
           agent_display_names: parseAgentDisplayNames(agentText),
           followup_enabled: (form.querySelector('[name="followup_enabled"]') || {}).checked ? '1' : '0',
           followup_delay_minutes: parseInt((form.querySelector('[name="followup_delay_minutes"]') || {}).value, 10) || 2,

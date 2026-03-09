@@ -41,6 +41,7 @@
     header_title: 'Chat with us',
     input_placeholder: 'Type a message...',
     show_agent_name: true,
+    sound_enabled: true,
     agent_display_names: {},
     followup_enabled: true,
     followup_delay_minutes: 2,
@@ -83,6 +84,7 @@
           settings.header_title = s.header_title || 'Chat with us';
           settings.input_placeholder = s.input_placeholder || 'Type a message...';
           settings.show_agent_name = s.show_agent_name !== false;
+          settings.sound_enabled = s.sound_enabled !== false && s.sound_enabled !== '0';
           settings.agent_display_names = s.agent_display_names || {};
           settings.followup_enabled = s.followup_enabled !== false;
           settings.followup_delay_minutes = Math.max(1, parseInt(s.followup_delay_minutes, 10) || 2);
@@ -123,6 +125,25 @@
     xhr.send(JSON.stringify({ visitor_id: visitorId }));
   }
 
+  function playNotificationSound() {
+    if (!settings.sound_enabled) return;
+    try {
+      var C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return;
+      var ctx = new C();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (e) {}
+  }
+
   function connectWs() {
     if (!conversationId) return;
     var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -133,7 +154,10 @@
       ws.onmessage = function (ev) {
         try {
           var p = JSON.parse(ev.data);
-          if (p.type === 'new_message' && p.message && p.message.sender_type === 'agent') appendMessage(p.message);
+          if (p.type === 'new_message' && p.message && p.message.sender_type === 'agent') {
+            playNotificationSound();
+            appendMessage(p.message);
+          }
         } catch (e) {}
       };
     } catch (e) {}

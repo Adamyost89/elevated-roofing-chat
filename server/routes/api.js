@@ -36,6 +36,7 @@ router.get('/widget-settings', (req, res) => {
     header_title: settings.header_title || 'Chat with us',
     input_placeholder: settings.input_placeholder || 'Type a message...',
     show_agent_name: settings.show_agent_name === '1' || settings.show_agent_name === 'true',
+    sound_enabled: settings.sound_enabled !== '0' && settings.sound_enabled !== 'false',
     agent_display_names: agent_display_names,
     followup_enabled: settings.followup_enabled === '1' || settings.followup_enabled === 'true',
     followup_delay_minutes: Math.max(1, parseInt(settings.followup_delay_minutes || '2', 10)),
