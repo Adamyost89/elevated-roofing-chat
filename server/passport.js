@@ -18,11 +18,17 @@ passport.use(
       callbackURL: `${process.env.BASE_URL || 'http://localhost:3000'}/auth/callback`,
     },
     (accessToken, refreshToken, profile, done) => {
-      const email = profile?.emails?.[0]?.value?.toLowerCase();
+      const email = (profile?.emails?.[0]?.value || profile?._json?.email || '').toLowerCase();
+      if (!email) {
+        console.error('Google login: no email in profile');
+        return done(null, false, { message: 'No email in profile' });
+      }
       if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(email)) {
+        console.error('Google login: email not allowed', email);
         return done(null, false, { message: 'Email not allowed' });
       }
-      if (ALLOWED_DOMAIN && email && !email.endsWith('@' + ALLOWED_DOMAIN)) {
+      if (ALLOWED_DOMAIN && !email.endsWith('@' + ALLOWED_DOMAIN)) {
+        console.error('Google login: domain not allowed', email, 'expected @' + ALLOWED_DOMAIN);
         return done(null, false, { message: 'Domain not allowed' });
       }
       return done(null, { ...profile, email });
