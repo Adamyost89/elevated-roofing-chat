@@ -5,7 +5,10 @@ const ALLOWED_EMAILS = (process.env.ALLOWED_ADMIN_EMAILS || '')
   .split(',')
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
-const ALLOWED_DOMAIN = (process.env.ALLOWED_ADMIN_DOMAIN || '').trim().toLowerCase();
+const ALLOWED_DOMAINS = (process.env.ALLOWED_ADMIN_DOMAIN || '')
+  .split(',')
+  .map((d) => d.trim().toLowerCase())
+  .filter(Boolean);
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
@@ -27,9 +30,12 @@ passport.use(
         console.error('Google login: email not allowed', email);
         return done(null, false, { message: 'Email not allowed' });
       }
-      if (ALLOWED_DOMAIN && !email.endsWith('@' + ALLOWED_DOMAIN)) {
-        console.error('Google login: domain not allowed', email, 'expected @' + ALLOWED_DOMAIN);
-        return done(null, false, { message: 'Domain not allowed' });
+      if (ALLOWED_DOMAINS.length > 0) {
+        const allowed = ALLOWED_DOMAINS.some((d) => email.endsWith('@' + d));
+        if (!allowed) {
+          console.error('Google login: domain not allowed', email, 'expected one of', ALLOWED_DOMAINS.map((d) => '@' + d));
+          return done(null, false, { message: 'Domain not allowed' });
+        }
       }
       return done(null, { ...profile, email });
     }
