@@ -58,9 +58,10 @@ router.post('/conversations/:id/messages', async (req, res) => {
 
   try {
     const created = await postMessageToThread(id, body, true);
-    const threadName = created?.thread?.name || `spaces/${require('../google-chat').SPACE_ID}/threads/${id}`;
+    const threadName = created?.thread?.name || created?.threadName || `spaces/${require('../google-chat').SPACE_ID}/threads/${id}`;
     if (!conv.thread_name) {
       db.prepare('UPDATE conversations SET thread_name = ? WHERE id = ?').run(threadName, id);
+      console.log('Chat: saved thread_name for', id, '->', threadName);
     }
   } catch (err) {
     console.error('Google Chat post failed:', err.message);
