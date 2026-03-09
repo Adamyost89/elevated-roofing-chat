@@ -10,7 +10,10 @@ router.get(
   '/callback',
   passport.authenticate('google', { failureRedirect: `${BASE_URL}/admin/?error=login_failed` }),
   (req, res) => {
-    res.redirect(`${BASE_URL}/admin/`);
+    req.session.save((err) => {
+      if (err) console.error('Session save on login:', err);
+      res.redirect(`${BASE_URL}/admin/`);
+    });
   }
 );
 

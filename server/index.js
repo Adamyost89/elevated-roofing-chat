@@ -17,6 +17,11 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const isSecure = BASE_URL.startsWith('https://');
+
+// Required when behind Cloudflare/reverse proxy so cookies and protocol work correctly
+app.set('trust proxy', 1);
 
 initDb();
 
@@ -35,7 +40,12 @@ app.use(
     secret: process.env.SESSION_SECRET || 'chat-secret-change-me',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === 'production', httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 },
+    cookie: {
+      secure: isSecure,
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: 'lax',
+    },
   })
 );
 app.use(passport.initialize());
