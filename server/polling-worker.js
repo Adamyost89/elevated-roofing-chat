@@ -13,12 +13,13 @@ async function poll() {
   let data;
   try {
     data = await listMessages(100);
+    if (!data) console.log('Chat poll: listMessages returned null');
   } catch (err) {
     console.error('Chat poll list error:', err.message);
     return;
   }
   if (!data || !data.messages) {
-    if (data && !data.messages) console.log('Chat poll: list returned no messages');
+    console.log('Chat poll: no messages to process. (data:', !!data, ', count:', data?.messages?.length ?? 0, ')');
     return;
   }
 
