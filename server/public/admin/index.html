@@ -66,6 +66,7 @@
       <div class="card" id="conversation-detail" style="display:none">
         <h2 style="margin:0 0 16px;font-size:1.1rem">Conversation</h2>
         <div id="conv-meta" class="meta"></div>
+        <div id="conv-contact" class="meta" style="margin-top:8px;padding:8px 0;border-top:1px solid #e2e8f0;display:none"></div>
         <div class="thread" id="thread-messages"></div>
         <div class="reply-form">
           <textarea id="reply-text" placeholder="Type your reply..."></textarea>
@@ -192,6 +193,17 @@
         document.getElementById('reply-text').value = '';
         api('/conversations/' + id).then(function(c) {
           document.getElementById('conv-meta').textContent = 'Visitor: ' + (c.visitor_id || id) + ' · Started ' + (c.created_at ? new Date(c.created_at).toLocaleString() : '');
+          var contactEl = document.getElementById('conv-contact');
+          if (contactEl) {
+            if (c.contact_email || c.contact_phone) {
+              var parts = [];
+              if (c.contact_name) parts.push('Name: ' + c.contact_name);
+              if (c.contact_email) parts.push('Email: ' + c.contact_email);
+              if (c.contact_phone) parts.push('Phone: ' + c.contact_phone);
+              contactEl.innerHTML = '<strong>Contact info left by visitor:</strong> ' + parts.join(' · ');
+              contactEl.style.display = 'block';
+            } else contactEl.style.display = 'none';
+          }
           var wrap = document.getElementById('thread-messages');
           wrap.innerHTML = '';
           (c.messages || []).forEach(function(m) {
@@ -263,7 +275,11 @@
           set('header_title', s.header_title || 'Chat with us');
           set('input_placeholder', s.input_placeholder || 'Type a message...');
           setCheck('show_agent_name', s.show_agent_name !== false);
-          set('agent_display_names', formatAgentDisplayNames(s.agent_display_names));
+          var agentNames = s.agent_display_names;
+          if (typeof agentNames === 'string') {
+            try { agentNames = JSON.parse(agentNames); } catch (e) { agentNames = {}; }
+          }
+          set('agent_display_names', formatAgentDisplayNames(agentNames));
           setCheck('followup_enabled', s.followup_enabled === '1' || s.followup_enabled === 'true');
           set('followup_delay_minutes', s.followup_delay_minutes != null ? s.followup_delay_minutes : 2);
           set('followup_title', s.followup_title || "We'll get back to you");
@@ -299,7 +315,7 @@
           followup_phone_placeholder: (form.querySelector('[name="followup_phone_placeholder"]') || {}).value || 'Phone',
           followup_submit_label: (form.querySelector('[name="followup_submit_label"]') || {}).value || 'Send'
         };
-        api('/widget-settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function() { showError(''); }).catch(showError);
+        api('/widget-settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function() { showError(''); loadSettings(); }).catch(showError);
       });
       checkAuth();
     })();

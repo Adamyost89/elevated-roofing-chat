@@ -47,7 +47,7 @@ router.get('/conversations', requireAuth, (req, res) => {
 
 router.get('/conversations/:id', requireAuth, (req, res) => {
   const db = getDb();
-  const conv = db.prepare('SELECT id, visitor_id, created_at, thread_name FROM conversations WHERE id = ?').get(req.params.id);
+  const conv = db.prepare('SELECT id, visitor_id, created_at, thread_name, contact_name, contact_email, contact_phone FROM conversations WHERE id = ?').get(req.params.id);
   if (!conv) return res.status(404).json({ error: 'Not found' });
   const messages = db
     .prepare('SELECT id, conversation_id, sender_type, body, agent_email, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC')
