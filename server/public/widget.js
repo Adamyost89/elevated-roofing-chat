@@ -31,6 +31,7 @@
   var ws = null;
   var settings = {
     delay_seconds: 3,
+    chatbox_popup_delay_seconds: 10,
     welcome_text: 'Hi! How can we help you today?',
     primary_color: '#2563eb',
     position: 'bottom-right',
@@ -71,6 +72,7 @@
         try {
           var s = JSON.parse(xhr.responseText);
           settings.delay_seconds = s.delay_seconds != null ? s.delay_seconds : 3;
+          settings.chatbox_popup_delay_seconds = Math.max(0, parseInt(s.chatbox_popup_delay_seconds, 10) || 10);
           settings.welcome_text = s.welcome_text || settings.welcome_text;
           settings.primary_color = s.primary_color || settings.primary_color;
           settings.position = s.position || 'bottom-right';
@@ -399,10 +401,11 @@
     loadSettings(function () {
       if (settings.button_always_visible) {
         renderLauncher();
-        if (settings.delay_seconds && settings.delay_seconds > 0) {
+        var popupDelay = (settings.chatbox_popup_delay_seconds || 0) * 1000;
+        if (popupDelay > 0) {
           autoOpenTimer = setTimeout(function () {
             if (!windowIsOpen) showWindow();
-          }, (settings.delay_seconds || 0) * 1000);
+          }, popupDelay);
         }
       } else {
         var delayMs = (settings.delay_seconds || 0) * 1000;

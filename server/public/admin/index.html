@@ -82,7 +82,9 @@
         <h2 style="margin:0 0 16px;font-size:1.1rem">Widget settings</h2>
         <form class="settings-form" id="settings-form">
           <label><input type="checkbox" name="button_always_visible" value="1" checked> Show chat button on page immediately (no delay)</label>
-          <label style="margin-top:8px">If unchecked: delay before showing chat button (seconds)</label>
+          <label style="margin-top:8px">Chat box popup delay (seconds) — how long until the chat window opens by itself. Use 0 to never auto-open.</label>
+          <input type="number" name="chatbox_popup_delay_seconds" min="0" max="120" value="10">
+          <label style="margin-top:8px">If button is not shown immediately: delay before showing chat button (seconds)</label>
           <input type="number" name="delay_seconds" min="0" max="60" value="3">
           <label>Chat button style</label>
           <select name="button_style">
@@ -266,6 +268,7 @@
           var set = function(name, val) { var el = form.querySelector('[name="' + name + '"]'); if (el) el.value = val != null ? val : ''; };
           var setCheck = function(name, val) { var el = form.querySelector('[name="' + name + '"]'); if (el) el.checked = !!val; };
           set('delay_seconds', s.delay_seconds != null ? s.delay_seconds : 3);
+          set('chatbox_popup_delay_seconds', s.chatbox_popup_delay_seconds != null ? s.chatbox_popup_delay_seconds : 10);
           set('welcome_text', s.welcome_text || '');
           set('primary_color', s.primary_color || '#2563eb');
           set('position', s.position || 'bottom-right');
@@ -296,6 +299,7 @@
         var agentText = (form.querySelector('[name="agent_display_names"]') || {}).value || '';
         var body = {
           delay_seconds: parseInt((form.querySelector('[name="delay_seconds"]') || {}).value, 10) || 3,
+          chatbox_popup_delay_seconds: Math.max(0, parseInt((form.querySelector('[name="chatbox_popup_delay_seconds"]') || {}).value, 10)) || 10,
           welcome_text: (form.querySelector('[name="welcome_text"]') || {}).value || '',
           primary_color: (form.querySelector('[name="primary_color"]') || {}).value || '#2563eb',
           position: (form.querySelector('[name="position"]') || {}).value || 'bottom-right',

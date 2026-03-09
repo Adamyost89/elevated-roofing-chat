@@ -71,6 +71,7 @@ function initDb() {
     insert.run('primary_color', '#2563eb');
     insert.run('position', 'bottom-right');
     insert.run('button_always_visible', '1');
+    insert.run('chatbox_popup_delay_seconds', '10');
     insert.run('button_style', 'icon_only');
     insert.run('button_label', 'Chat');
     insert.run('header_title', 'Chat with us');

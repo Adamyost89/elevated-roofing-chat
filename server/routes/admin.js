@@ -90,7 +90,7 @@ router.get('/widget-settings', requireAuth, (req, res) => {
 router.put('/widget-settings', requireAuth, (req, res) => {
   const db = getDb();
   const allowed = [
-    'delay_seconds', 'welcome_text', 'primary_color', 'position',
+    'delay_seconds', 'chatbox_popup_delay_seconds', 'welcome_text', 'primary_color', 'position',
     'button_always_visible', 'button_style', 'button_label', 'header_title', 'input_placeholder',
     'show_agent_name', 'agent_display_names',
     'followup_enabled', 'followup_delay_minutes', 'followup_title', 'followup_message',

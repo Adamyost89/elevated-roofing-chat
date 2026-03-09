@@ -29,6 +29,7 @@ router.get('/widget-settings', (req, res) => {
     primary_color: settings.primary_color || '#2563eb',
     position: settings.position || 'bottom-right',
     button_always_visible: settings.button_always_visible === '1' || settings.button_always_visible === 'true',
+    chatbox_popup_delay_seconds: Math.max(0, parseInt(settings.chatbox_popup_delay_seconds || '10', 10)),
     button_style: settings.button_style || 'icon_only',
     button_label: settings.button_label || 'Chat',
     header_title: settings.header_title || 'Chat with us',
