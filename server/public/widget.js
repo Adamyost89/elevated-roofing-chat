@@ -171,7 +171,7 @@
       connectWs();
       loadMessages();
       var wrap = document.createElement('div');
-      wrap.className = 'er-chat-window ' + settings.position';
+      wrap.className = 'er-chat-window ' + settings.position;
       wrap.innerHTML =
         '<div class="er-chat-header" style="background:' + settings.primary_color + '">' +
         '<h3>Chat with us</h3>' +
