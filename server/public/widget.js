@@ -11,7 +11,7 @@
     }
     return window.ER_CHAT_BASE_URL || '';
   })();
-
+  if (!BASE && typeof window !== 'undefined' && window.location) BASE = window.location.origin;
   if (!BASE) {
     console.warn('Elevated Roofing Chat: could not detect base URL. Set window.ER_CHAT_BASE_URL.');
     return;

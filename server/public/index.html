@@ -15,6 +15,7 @@
   <h1>Chat widget test</h1>
   <p>This page is only for testing the chat. The bubble should appear after a few seconds (or immediately if you already opened it).</p>
   <p><a href="/admin/">Open admin</a></p>
-  <script src="/widget.js" async></script>
+  <script>window.ER_CHAT_BASE_URL = window.location.origin;</script>
+  <script src="/widget.js"></script>
 </body>
 </html>
