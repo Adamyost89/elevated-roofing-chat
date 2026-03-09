@@ -15,13 +15,14 @@ Follow these steps in order. You’ll use GitHub to get the code on your server,
 git init
 git add .
 git commit -m "Initial chat app"
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+git remote add origin https://github.com/adamyost89/elevated-roofing-chat.git
 git branch -M main
 git push -u origin main
 ```
 
-- Replace `YOUR_USERNAME` and `YOUR_REPO_NAME` with your GitHub username and repo name.
-- **Do not** commit the file `elevated-roofing-website-chat-d56faccd129d.json` (it has secrets). Add it to `.gitignore` first (see below).
+- Replace `YOUR_USERNAME` and `YOUR_REPO_NAME` with your GitHub username and repo name (e.g. `adamyost89` and `elevated-roofing-chat`). If you already ran `git remote add origin` with a placeholder URL, fix it with:  
+  `git remote set-url origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git`
+- **Do not** commit the file `elevated-roofing-website-chat-d56faccd129d.json` (it has secrets). It’s already in `.gitignore`.
 
 ### 1.2 Ignore secrets in Git
 
@@ -44,16 +45,13 @@ git push
 
 - SSH into your server (e.g. `ssh adam@elevateroofing`).
 - Go to a folder where you keep projects (e.g. `~/projects` or `~/apps`).
-- Clone the repo:
+- Clone the repo (use your real GitHub repo URL):
 
 ```bash
-cd ~
-# or: cd ~/projects
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git elevated-roofing-chat
+cd ~/WebChat
+git clone https://github.com/adamyost89/elevated-roofing-chat.git elevated-roofing-chat
 cd elevated-roofing-chat
 ```
-
-- Replace the URL with your real GitHub repo URL.
 
 ### 1.4 Put the Google service account file on the server
 
@@ -63,7 +61,7 @@ cd elevated-roofing-chat
   On **Windows** (PowerShell or a terminal where you have the file):
 
   ```bash
-  scp "C:\Users\adamr\Documents\Programs\Web Chat\elevated-roofing-website-chat-d56faccd129d.json" adam@YOUR_SERVER_IP:elevated-roofing-chat/
+  scp "C:\Users\adamr\Documents\Programs\Web Chat\elevated-roofing-website-chat-d56faccd129d.json" adam@10.0.0.47:WebChat/
   ```
 
   Replace `YOUR_SERVER_IP` with your server’s IP or hostname. If you use a different path to the file, change the first path.
@@ -169,7 +167,7 @@ After you start the chat container (Part 5), traffic to `https://chat.elevatedro
 On the **Ubuntu server**:
 
 ```bash
-cd ~/elevated-roofing-chat
+cd ~/WebChat/elevated-roofing-chat
 docker compose up -d
 ```
 
