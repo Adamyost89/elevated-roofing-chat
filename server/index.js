@@ -53,6 +53,7 @@ app.use(passport.session());
 
 app.use('/api', apiRoutes);
 app.use('/auth', authRoutes);
+app.use('/auth', require('./routes/chat-sync-auth'));
 app.use('/events', eventsRoutes);
 app.use('/admin/api', adminRoutes);
 

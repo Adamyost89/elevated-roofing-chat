@@ -93,15 +93,26 @@ Do this in [Google Cloud Console](https://console.cloud.google.com) with project
 2. Click **Create credentials** → **OAuth client ID**.
 3. Application type: **Web application**.
 4. Name: e.g. “Chat Admin”.
-5. Under **Authorized redirect URIs**, click **Add URI** and add exactly:
+5. Under **Authorized redirect URIs**, add **both** of these (one per line):
 
    ```
    https://chat.elevatedroofingandsiding.com/auth/callback
+   https://chat.elevatedroofingandsiding.com/auth/chat-sync/callback
    ```
 
-6. Save. You’ll see a **Client ID** and **Client secret**. Copy both; you’ll put them in `.env` on the server.
+6. Under **OAuth consent screen** (or in the consent screen config), add the scope **Google Chat API – Read your Chat messages** (`https://www.googleapis.com/auth/chat.messages.readonly`) so agents can connect their account for syncing replies from Chat to the widget.
 
-### 2.3 Add the Chat app to your Google Chat space
+7. Save. You’ll see a **Client ID** and **Client secret**. Copy both; you’ll put them in `.env` on the server.
+
+### 2.3 Connect Google Chat so replies sync (reply only in Chat, no @mention)
+
+1. In **Admin** (https://chat.elevatedroofingandsiding.com/admin/), sign in.
+2. In the **Google Chat sync** card, click **Connect Google account**.
+3. Approve the prompt (read your Chat messages for the app).
+4. You’re redirected back; the card should show **Connected** and your email. From then on, **replies you type in Google Chat** in the website-chats space are synced to the widget (no @mention). One connected account is enough for the whole team.
+5. If the connection ever stops working (e.g. token expired), click **Disconnect** and **Connect Google account** again.
+
+### 2.4 Add the Chat app to your Google Chat space
 
 1. In Google Chat, open the space you use for website chats (the one with URL containing `AAQAJjD8_Ho`).
 2. Click the space name at the top → **Manage apps** / **Add apps** (wording may vary).
@@ -183,7 +194,7 @@ You should see something like “Chat server listening on port 3000”. Stop fol
 If you need to update the app later (after you push changes to GitHub):
 
 ```bash
-cd ~/elevated-roofing-chat
+cd ~/WebChat/elevated-roofing-chat
 git pull
 docker compose build --no-cache
 docker compose up -d
@@ -237,8 +248,8 @@ On the site **elevatedroofingandsiding.com** (wherever you edit the HTML – CMS
 - **Widget doesn’t load**  
   Check that `https://chat.elevatedroofingandsiding.com/widget.js` opens in a browser and that the tunnel is running and points to port 3000.
 
-- **No replies from Google Chat on the website**  
-  The app uses polling (about every 15 seconds). Make sure the Chat app is in the space and that your team is replying in the **same space** (in the thread for that conversation). If you don’t see threads, send the first message from the website so the thread is created.
+- **Replies in Google Chat don’t show in the widget**  
+  **Fix:** In Admin, open the **Google Chat sync** card and click **Connect Google account**. Sign in with a Google account that is a **member of your website-chats space**. After connecting, replies you type in that space sync to the widget (no @mention). Only one account needs to be connected. If it stops working later, Disconnect and Connect again.
 
 - **“Credentials not found” in Docker**  
   The path in `docker-compose.yml` mounts the JSON from `./elevated-roofing-website-chat-d56faccd129d.json` in the project folder. Ensure that file exists on the server in `~/elevated-roofing-chat/` (or the path you use).

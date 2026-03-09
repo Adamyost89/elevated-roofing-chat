@@ -17,6 +17,18 @@ router.get('/me', (req, res) => {
   });
 });
 
+router.get('/chat-sync/status', requireAuth, (req, res) => {
+  const db = getDb();
+  const row = db.prepare('SELECT email, created_at FROM chat_sync_credentials WHERE id = 1 AND refresh_token != ?').get('');
+  res.json({ connected: !!row, email: row?.email || null, connectedAt: row?.created_at || null });
+});
+
+router.post('/chat-sync/disconnect', requireAuth, (req, res) => {
+  const db = getDb();
+  db.prepare('DELETE FROM chat_sync_credentials WHERE id = 1').run();
+  res.json({ connected: false });
+});
+
 router.get('/conversations', requireAuth, (req, res) => {
   const db = getDb();
   const list = db

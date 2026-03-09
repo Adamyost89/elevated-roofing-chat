@@ -73,6 +73,11 @@
         </div>
       </div>
       <div class="card">
+        <h2 style="margin:0 0 16px;font-size:1.1rem">Google Chat sync</h2>
+        <p style="margin:0 0 12px;color:#64748b;font-size:14px">Reply in Google Chat only. One team member connects their Google account so replies in the space sync to the widget (no @mention).</p>
+        <div id="chat-sync-status"></div>
+      </div>
+      <div class="card">
         <h2 style="margin:0 0 16px;font-size:1.1rem">Widget settings</h2>
         <form class="settings-form" id="settings-form">
           <label>Delay before showing chat (seconds)</label>
@@ -116,6 +121,12 @@
           if (el) el.textContent = me.email || me.name || 'Signed in';
           loadConversations();
           loadSettings();
+          loadChatSyncStatus();
+          var q = new URLSearchParams(window.location.search);
+          if (q.get('chat_sync') === 'ok') { showError(''); history.replaceState({}, '', BASE + '/admin/'); }
+          if (q.get('chat_sync') === 'error') showError('Could not connect Google Chat. Try again.');
+          if (q.get('chat_sync') === 'denied') showError('Google Chat connection was denied.');
+          if (q.get('chat_sync') === 'login_first') showError('Sign in first, then connect Google Chat.');
           return me;
         }).catch(function() {
           document.getElementById('login-screen').style.display = 'block';
@@ -172,6 +183,20 @@
           loadConversations();
         }).catch(showError);
       });
+      function loadChatSyncStatus() {
+        api('/chat-sync/status').then(function(d) {
+          var el = document.getElementById('chat-sync-status');
+          if (!el) return;
+          if (d.connected) {
+            el.innerHTML = '<p style="margin:0 0 10px"><span class="badge">Connected</span> ' + (d.email || '') + '</p><button type="button" class="btn btn-ghost" id="chat-sync-disconnect">Disconnect</button>';
+            document.getElementById('chat-sync-disconnect').onclick = function() {
+              api('/chat-sync/disconnect', { method: 'POST' }).then(function() { loadChatSyncStatus(); }).catch(showError);
+            };
+          } else {
+            el.innerHTML = '<a href="' + BASE + '/auth/chat-sync" class="btn btn-primary">Connect Google account</a>';
+          }
+        }).catch(function() {});
+      }
       function loadSettings() {
         api('/widget-settings').then(function(s) {
           var form = document.getElementById('settings-form');

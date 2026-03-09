@@ -42,6 +42,13 @@ function initDb() {
       value TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS chat_sync_credentials (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      refresh_token TEXT NOT NULL,
+      email TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
     CREATE INDEX IF NOT EXISTS idx_conversations_visitor ON conversations(visitor_id);

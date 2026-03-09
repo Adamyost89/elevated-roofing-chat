@@ -13,15 +13,18 @@ async function poll() {
   let data;
   try {
     data = await listMessages(100);
-    if (!data) console.log('Chat poll: listMessages returned null');
   } catch (err) {
     console.error('Chat poll list error:', err.message);
     return;
   }
   if (!data || !data.messages) {
-    console.log('Chat poll: no messages to process. (data:', !!data, ', count:', data?.messages?.length ?? 0, ')');
+    if (!poll._loggedNoData) {
+      poll._loggedNoData = true;
+      console.log('Chat poll: list returned no data (403 or empty). Agent replies in Google Chat will not sync to the widget. Use Admin panel to reply instead.');
+    }
     return;
   }
+  poll._loggedNoData = false;
 
   const humanCount = data.messages.filter((m) => String(m.sender?.type || '').toUpperCase() !== 'BOT').length;
   if (humanCount > 0 && data.messages[0]?.thread) {

@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
+const { getDb } = require('./db');
 
 const SCOPES = [
   'https://www.googleapis.com/auth/chat.messages',
@@ -26,6 +27,23 @@ function getChatClient() {
   return chatClient;
 }
 
+function getUserListAuth() {
+  try {
+    const db = getDb();
+    const row = db.prepare('SELECT refresh_token FROM chat_sync_credentials WHERE id = 1 AND refresh_token != ?').get('');
+    if (!row || !row.refresh_token) return null;
+    const oauth2 = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.BASE_URL + '/auth/chat-sync/callback'
+    );
+    oauth2.setCredentials({ refresh_token: row.refresh_token });
+    return oauth2;
+  } catch {
+    return null;
+  }
+}
+
 const SPACE_ID = process.env.GOOGLE_CHAT_SPACE_ID || 'AAQAJjD8_Ho';
 
 function getSpaceName() {
@@ -47,17 +65,38 @@ async function postMessageToThread(conversationId, text, isVisitor = true) {
 }
 
 async function listMessages(pageSize = 100, pageToken = null) {
-  const chat = getChatClient();
   const spaceName = getSpaceName();
+  const listOpts = { parent: spaceName, pageSize, pageToken: pageToken || undefined };
+
+  const userAuth = getUserListAuth();
+  if (userAuth) {
+    try {
+      const chat = google.chat({ version: 'v1', auth: userAuth });
+      const res = await chat.spaces.messages.list(listOpts);
+      return res.data;
+    } catch (err) {
+      if (err.code === 401 || err.message?.includes('invalid_grant') || err.message?.includes('Token has been expired')) {
+        if (!listMessages._loggedUserAuthFail) {
+          listMessages._loggedUserAuthFail = true;
+          console.warn('Chat list (user auth): token expired or invalid. Reconnect in Admin -> Connect Google Chat.');
+        }
+      } else {
+        console.error('Chat list (user auth) error:', err.message);
+      }
+      return null;
+    }
+  }
+
   try {
-    const res = await chat.spaces.messages.list({
-      parent: spaceName,
-      pageSize,
-      pageToken: pageToken || undefined,
-    });
+    const chat = getChatClient();
+    const res = await chat.spaces.messages.list(listOpts);
     return res.data;
   } catch (err) {
     if (err.code === 403 || err.message?.includes('not enabled')) {
+      if (!listMessages._logged403) {
+        listMessages._logged403 = true;
+        console.warn('Chat list (app): 403. Connect a Google account in Admin -> Connect Google Chat so replies in Chat sync to the widget.');
+      }
       return null;
     }
     throw err;
