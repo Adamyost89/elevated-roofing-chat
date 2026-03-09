@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Admin – Elevated Roofing</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f1f5f9; }
+    .admin { max-width: 1000px; margin: 0 auto; padding: 20px; }
+    h1 { font-size: 1.5rem; margin: 0 0 20px; color: #1e293b; }
+    .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    .btn { padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; display: inline-block; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-ghost { background: #e2e8f0; color: #475569; }
+    .btn-ghost:hover { background: #cbd5e1; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px; }
+    .conversation-list { list-style: none; padding: 0; margin: 0; }
+    .conversation-list li { padding: 14px 0; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .conversation-list li:last-child { border-bottom: none; }
+    .conversation-list a { color: #2563eb; text-decoration: none; font-weight: 500; }
+    .conversation-list a:hover { text-decoration: underline; }
+    .meta { font-size: 12px; color: #64748b; }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #dcfce7; color: #166534; }
+    .badge.unreplied { background: #fef3c7; color: #92400e; }
+    .thread { margin-top: 16px; }
+    .thread-msg { padding: 10px 12px; margin-bottom: 8px; border-radius: 8px; max-width: 85%; }
+    .thread-msg.visitor { background: #e2e8f0; margin-right: auto; }
+    .thread-msg.agent { background: #2563eb; color: white; margin-left: auto; }
+    .thread-msg .who { font-size: 11px; opacity: 0.9; margin-bottom: 4px; }
+    .reply-form { display: flex; gap: 10px; margin-top: 16px; }
+    .reply-form textarea { flex: 1; min-height: 44px; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; }
+    .reply-form button { padding: 10px 20px; border-radius: 8px; border: none; background: #2563eb; color: white; cursor: pointer; font-weight: 500; }
+    .reply-form button:hover { background: #1d4ed8; }
+    .settings-form label { display: block; margin-bottom: 4px; font-weight: 500; color: #334155; }
+    .settings-form input, .settings-form select { width: 100%; max-width: 320px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 14px; }
+    .settings-form button { margin-top: 8px; }
+    .error { background: #fef2f2; color: #991b1b; padding: 12px; border-radius: 8px; margin-bottom: 16px; }
+    .user { font-size: 14px; color: #475569; }
+  </style>
+</head>
+<body>
+  <div class="admin">
+    <div id="login-screen">
+      <div class="card">
+        <h1>Chat Admin</h1>
+        <p>Sign in with your Google Workspace account to manage conversations and widget settings.</p>
+        <a href="/auth/login" class="btn btn-primary">Sign in with Google</a>
+      </div>
+      <div id="login-error"></div>
+    </div>
+    <div id="app-screen" style="display:none">
+      <div class="bar">
+        <h1>Chat Admin</h1>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="user" id="user-email"></span>
+          <a href="/auth/logout" class="btn btn-ghost">Sign out</a>
+        </div>
+      </div>
+      <div id="error-box"></div>
+      <div class="card">
+        <h2 style="margin:0 0 16px;font-size:1.1rem">Conversations</h2>
+        <ul class="conversation-list" id="conversations"></ul>
+      </div>
+      <div class="card" id="conversation-detail" style="display:none">
+        <h2 style="margin:0 0 16px;font-size:1.1rem">Conversation</h2>
+        <div id="conv-meta" class="meta"></div>
+        <div class="thread" id="thread-messages"></div>
+        <div class="reply-form">
+          <textarea id="reply-text" placeholder="Type your reply..."></textarea>
+          <button type="button" id="reply-send" class="btn btn-primary">Send</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2 style="margin:0 0 16px;font-size:1.1rem">Widget settings</h2>
+        <form class="settings-form" id="settings-form">
+          <label>Delay before showing chat (seconds)</label>
+          <input type="number" name="delay_seconds" min="0" max="60" value="3">
+          <label>Welcome text</label>
+          <input type="text" name="welcome_text" placeholder="Hi! How can we help?">
+          <label>Primary color</label>
+          <input type="text" name="primary_color" placeholder="#2563eb">
+          <label>Position</label>
+          <select name="position">
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-left">Bottom left</option>
+          </select>
+          <button type="submit" class="btn btn-primary">Save settings</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      var BASE = window.location.origin;
+      function api(path, opts) {
+        opts = opts || {};
+        var url = BASE + '/admin/api' + path;
+        return fetch(url, { credentials: 'include', headers: opts.headers || {}, method: opts.method || 'GET', body: opts.body }).then(function(r) {
+          if (r.status === 401) { window.location.href = BASE + '/auth/login'; return Promise.reject(new Error('Unauthorized')); }
+          if (!r.ok) return r.json().then(function(j){ return Promise.reject(new Error(j.error || r.statusText)); });
+          return r.headers.get('content-type') && r.headers.get('content-type').indexOf('json') >= 0 ? r.json() : r.text();
+        });
+      }
+      function showError(msg) {
+        var box = document.getElementById('error-box');
+        if (!box) return;
+        box.innerHTML = msg ? '<div class="error">' + msg + '</div>' : '';
+      }
+      function checkAuth() {
+        return api('/me').then(function(me) {
+          document.getElementById('login-screen').style.display = 'none';
+          document.getElementById('app-screen').style.display = 'block';
+          var el = document.getElementById('user-email');
+          if (el) el.textContent = me.email || me.name || 'Signed in';
+          loadConversations();
+          loadSettings();
+          return me;
+        }).catch(function() {
+          document.getElementById('login-screen').style.display = 'block';
+          document.getElementById('app-screen').style.display = 'none';
+          var err = new URLSearchParams(window.location.search).get('error');
+          var errEl = document.getElementById('login-error');
+          if (errEl && err === 'login_failed') errEl.innerHTML = '<div class="error">Sign-in failed. Try again or contact your admin.</div>';
+        });
+      }
+      function loadConversations() {
+        api('/conversations').then(function(d) {
+          var list = document.getElementById('conversations');
+          if (!list) return;
+          list.innerHTML = '';
+          (d.conversations || []).forEach(function(c) {
+            var li = document.createElement('li');
+            var replied = c.last_reply_by ? '<span class="badge">Replied</span>' : '<span class="badge unreplied">No reply</span>';
+            li.innerHTML = '<div><a href="#" data-id="' + c.id + '">' + (c.visitor_id || c.id).slice(0, 12) + '...</a> ' + replied + '<br><span class="meta">' + (c.last_message_at ? new Date(c.last_message_at).toLocaleString() : '') + (c.last_reply_by ? ' · ' + c.last_reply_by : '') + '</span></div>';
+            li.querySelector('a').onclick = function(e) { e.preventDefault(); openConversation(c.id); };
+            list.appendChild(li);
+          });
+        }).catch(showError);
+      }
+      var currentConvId = null;
+      function openConversation(id) {
+        currentConvId = id;
+        document.getElementById('conversation-detail').style.display = 'block';
+        document.getElementById('conv-meta').textContent = 'Conversation ' + id;
+        document.getElementById('reply-text').value = '';
+        api('/conversations/' + id).then(function(c) {
+          document.getElementById('conv-meta').textContent = 'Visitor: ' + (c.visitor_id || id) + ' · Started ' + (c.created_at ? new Date(c.created_at).toLocaleString() : '');
+          var wrap = document.getElementById('thread-messages');
+          wrap.innerHTML = '';
+          (c.messages || []).forEach(function(m) {
+            var div = document.createElement('div');
+            div.className = 'thread-msg ' + m.sender_type;
+            div.innerHTML = '<div class="who">' + (m.sender_type === 'agent' ? (m.agent_email || 'Agent') : 'Visitor') + ' · ' + (m.created_at ? new Date(m.created_at).toLocaleString() : '') + '</div><div>' + (m.body || '').replace(/</g, '&lt;') + '</div>';
+            wrap.appendChild(div);
+          });
+        }).catch(showError);
+      }
+      document.getElementById('reply-send').addEventListener('click', function() {
+        if (!currentConvId) return;
+        var text = document.getElementById('reply-text').value.trim();
+        if (!text) return;
+        api('/conversations/' + currentConvId + '/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: text }) }).then(function(d) {
+          document.getElementById('reply-text').value = '';
+          var wrap = document.getElementById('thread-messages');
+          var m = d.message;
+          var div = document.createElement('div');
+          div.className = 'thread-msg agent';
+          div.innerHTML = '<div class="who">' + (m.agent_email || 'Agent') + ' · ' + (m.created_at ? new Date(m.created_at).toLocaleString() : '') + '</div><div>' + (m.body || '').replace(/</g, '&lt;') + '</div>';
+          wrap.appendChild(div);
+          loadConversations();
+        }).catch(showError);
+      });
+      function loadSettings() {
+        api('/widget-settings').then(function(s) {
+          var form = document.getElementById('settings-form');
+          if (!form) return;
+          var d = form.querySelector('[name="delay_seconds"]'); if (d) d.value = s.delay_seconds != null ? s.delay_seconds : 3;
+          var w = form.querySelector('[name="welcome_text"]'); if (w) w.value = s.welcome_text || '';
+          var c = form.querySelector('[name="primary_color"]'); if (c) c.value = s.primary_color || '#2563eb';
+          var p = form.querySelector('[name="position"]'); if (p) p.value = s.position || 'bottom-right';
+        });
+      }
+      document.getElementById('settings-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var form = e.target;
+        var body = {
+          delay_seconds: parseInt((form.querySelector('[name="delay_seconds"]') || {}).value, 10) || 3,
+          welcome_text: (form.querySelector('[name="welcome_text"]') || {}).value || '',
+          primary_color: (form.querySelector('[name="primary_color"]') || {}).value || '#2563eb',
+          position: (form.querySelector('[name="position"]') || {}).value || 'bottom-right'
+        };
+        api('/widget-settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function() { showError(''); }).catch(showError);
+      });
+      checkAuth();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+services:
+  chat:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: elevated-roofing-chat:latest
+    container_name: elevated-roofing-chat
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - BASE_URL=${BASE_URL:-https://chat.elevatedroofingandsiding.com}
+      - GOOGLE_CHAT_CREDENTIALS_PATH=/app/config/credentials.json
+      - GOOGLE_CHAT_SPACE_ID=${GOOGLE_CHAT_SPACE_ID:-AAQAJjD8_Ho}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - ALLOWED_ADMIN_EMAILS=${ALLOWED_ADMIN_EMAILS:-}
+      - ALLOWED_ADMIN_DOMAIN=${ALLOWED_ADMIN_DOMAIN:-}
+      - SESSION_SECRET=${SESSION_SECRET:-change-me-in-production}
+      - CHAT_POLL_INTERVAL_MS=${CHAT_POLL_INTERVAL_MS:-15000}
+      - SQLITE_PATH=/app/data/chat.db
+    volumes:
+      - chat-data:/app/data
+      - ./elevated-roofing-website-chat-d56faccd129d.json:/app/config/credentials.json:ro
+    networks:
+      - chat-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+volumes:
+  chat-data:
+
+networks:
+  chat-net:
+    driver: bridge
