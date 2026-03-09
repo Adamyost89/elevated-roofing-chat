@@ -67,7 +67,9 @@ router.post('/conversations/:id/messages', async (req, res) => {
   }
 
   const row = db.prepare('SELECT id, conversation_id, sender_type, body, agent_email, created_at FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1').get(id);
-  req.app.get('wss')?.broadcastToConversation(id, { type: 'new_message', message: row });
+  if (row.sender_type === 'agent') {
+    req.app.get('wss')?.broadcastToConversation(id, { type: 'new_message', message: row });
+  }
   res.json({ message: row });
 });
 

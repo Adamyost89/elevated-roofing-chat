@@ -90,7 +90,7 @@
       ws.onmessage = function (ev) {
         try {
           var p = JSON.parse(ev.data);
-          if (p.type === 'new_message' && p.message) appendMessage(p.message);
+          if (p.type === 'new_message' && p.message && p.message.sender_type === 'agent') appendMessage(p.message);
         } catch (e) {}
       };
     } catch (e) {}
@@ -99,7 +99,9 @@
   function appendMessage(msg) {
     var list = root.querySelector('.er-chat-messages');
     if (!list) return;
+    if (msg.id && list.querySelector('[data-msg-id="' + msg.id + '"]')) return;
     var div = document.createElement('div');
+    if (msg.id) div.setAttribute('data-msg-id', String(msg.id));
     div.className = 'er-chat-msg ' + (msg.sender_type === 'agent' ? 'agent' : 'visitor');
     div.style.backgroundColor = msg.sender_type === 'agent' ? settings.primary_color : '';
     div.innerHTML = '<span class="er-chat-msg-text"></span><span class="er-chat-msg-time"></span>';

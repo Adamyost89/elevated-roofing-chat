@@ -23,7 +23,7 @@ async function poll() {
   const seenStmt = db.prepare('SELECT 1 FROM messages WHERE google_message_name = ? LIMIT 1');
 
   for (const msg of data.messages) {
-    if (msg.sender?.type === 'BOT') continue;
+    if (String(msg.sender?.type || '').toUpperCase() === 'BOT') continue;
     const name = msg.name;
     if (!name || lastKnownIds.has(name)) continue;
 
@@ -33,7 +33,8 @@ async function poll() {
     const exists = seenStmt.get(name);
     if (exists) continue;
 
-    const conv = db.prepare('SELECT id FROM conversations WHERE thread_name = ? OR id = ?').get(threadName, threadName.split('/threads/')[1] || '');
+    const threadIdPart = threadName.split('/threads/')[1] || '';
+    const conv = db.prepare('SELECT id FROM conversations WHERE thread_name = ? OR id = ? OR thread_name LIKE ?').get(threadName, threadIdPart, '%/' + threadIdPart);
     if (!conv) continue;
     const conversationId = conv.id;
 
