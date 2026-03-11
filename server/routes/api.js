@@ -24,6 +24,20 @@ router.get('/widget-settings', (req, res) => {
   try {
     if (settings.agent_display_names) agent_display_names = JSON.parse(settings.agent_display_names);
   } catch (_) {}
+  let ooo_schedule = null;
+  try {
+    if (settings.ooo_schedule) ooo_schedule = JSON.parse(settings.ooo_schedule);
+  } catch (_) {}
+  let contact_form_fields = [];
+  try {
+    if (settings.contact_form_fields) contact_form_fields = JSON.parse(settings.contact_form_fields);
+    if (!Array.isArray(contact_form_fields)) contact_form_fields = [];
+  } catch (_) {}
+  let agent_avatar_urls = {};
+  try {
+    if (settings.agent_avatar_urls) agent_avatar_urls = JSON.parse(settings.agent_avatar_urls);
+    if (typeof agent_avatar_urls !== 'object') agent_avatar_urls = {};
+  } catch (_) {}
   res.json({
     delay_seconds: parseInt(settings.delay_seconds || '3', 10),
     welcome_text: settings.welcome_text || 'Hi! How can we help you today?',
@@ -46,6 +60,18 @@ router.get('/widget-settings', (req, res) => {
     followup_email_placeholder: settings.followup_email_placeholder || 'Email',
     followup_phone_placeholder: settings.followup_phone_placeholder || 'Phone',
     followup_submit_label: settings.followup_submit_label || 'Send',
+    ooo_enabled: settings.ooo_enabled === '1' || settings.ooo_enabled === 'true',
+    ooo_timezone: settings.ooo_timezone || 'America/Chicago',
+    ooo_schedule: ooo_schedule,
+    ooo_contact_form_delay_seconds: Math.max(0, parseInt(settings.ooo_contact_form_delay_seconds || '0', 10)),
+    ooo_message: settings.ooo_message || "We're currently out of office. Leave your details and we'll get back to you.",
+    contact_form_fields: contact_form_fields,
+    agent_avatar_urls: agent_avatar_urls,
+    waiting_status_text: settings.waiting_status_text || 'Waiting on team member',
+    waiting_prompt_delay_seconds: Math.max(0, parseInt(settings.waiting_prompt_delay_seconds || '120', 10)),
+    waiting_prompt_question: settings.waiting_prompt_question || 'Would you like to keep waiting or have someone contact you?',
+    waiting_prompt_keep_label: settings.waiting_prompt_keep_label || 'Keep waiting',
+    waiting_prompt_contact_label: settings.waiting_prompt_contact_label || 'Have someone contact me',
   });
 });
 
@@ -108,10 +134,18 @@ router.post('/conversations/:id/messages', async (req, res) => {
 
 router.post('/conversations/:id/contact', async (req, res) => {
   const { id } = req.params;
-  const name = (req.body?.name || '').trim();
-  const email = (req.body?.email || '').trim();
-  const phone = (req.body?.phone || '').trim();
-  if (!email && !phone) return res.status(400).json({ error: 'Email or phone required' });
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const name = (body.name || '').trim();
+  const email = (body.email || '').trim();
+  const phone = (body.phone || '').trim();
+  const knownKeys = ['name', 'email', 'phone'];
+  const extra = {};
+  Object.keys(body).forEach((k) => {
+    if (knownKeys.indexOf(k) === -1 && body[k] != null && String(body[k]).trim() !== '') {
+      extra[k] = String(body[k]).trim();
+    }
+  });
+  if (!email && !phone && Object.keys(extra).length === 0) return res.status(400).json({ error: 'Email, phone, or contact details required' });
 
   const db = getDb();
   let conv = db.prepare('SELECT id, thread_name, display_number FROM conversations WHERE id = ?').get(id);
@@ -122,14 +156,16 @@ router.post('/conversations/:id/contact', async (req, res) => {
     conv = { ...conv, display_number: nextNum.n };
   }
 
-  db.prepare('UPDATE conversations SET contact_name = ?, contact_email = ?, contact_phone = ? WHERE id = ?').run(name || null, email || null, phone || null, id);
+  const contactExtraJson = Object.keys(extra).length > 0 ? JSON.stringify(extra) : null;
+  db.prepare('UPDATE conversations SET contact_name = ?, contact_email = ?, contact_phone = ?, contact_extra = ? WHERE id = ?').run(name || null, email || null, phone || null, contactExtraJson, id);
 
   const prefix = conv.display_number ? `Website chat #${conv.display_number} — ` : '';
-  const summary = [prefix + 'Visitor left contact info:'].concat(
-    name ? ['Name: ' + name] : [],
-    email ? ['Email: ' + email] : [],
-    phone ? ['Phone: ' + phone] : []
-  ).join('\n');
+  const summaryParts = [prefix + 'Visitor left contact info:'];
+  if (name) summaryParts.push('Name: ' + name);
+  if (email) summaryParts.push('Email: ' + email);
+  if (phone) summaryParts.push('Phone: ' + phone);
+  Object.keys(extra).forEach((k) => summaryParts.push(k + ': ' + extra[k]));
+  const summary = summaryParts.join('\n');
 
   try {
     await postMessageToThread(id, summary, true);

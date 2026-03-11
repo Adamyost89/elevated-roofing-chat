@@ -47,7 +47,7 @@ router.get('/conversations', requireAuth, (req, res) => {
 
 router.get('/conversations/:id', requireAuth, (req, res) => {
   const db = getDb();
-  const conv = db.prepare('SELECT id, visitor_id, display_number, created_at, thread_name, contact_name, contact_email, contact_phone FROM conversations WHERE id = ?').get(req.params.id);
+  const conv = db.prepare('SELECT id, visitor_id, display_number, created_at, thread_name, contact_name, contact_email, contact_phone, contact_extra FROM conversations WHERE id = ?').get(req.params.id);
   if (!conv) return res.status(404).json({ error: 'Not found' });
   const messages = db
     .prepare('SELECT id, conversation_id, sender_type, body, agent_email, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC')
@@ -94,14 +94,20 @@ router.put('/widget-settings', requireAuth, (req, res) => {
     'button_always_visible', 'button_style', 'button_label', 'header_title', 'input_placeholder',
     'show_agent_name', 'sound_enabled', 'agent_display_names',
     'followup_enabled', 'followup_delay_minutes', 'followup_title', 'followup_message',
-    'followup_name_placeholder', 'followup_email_placeholder', 'followup_phone_placeholder', 'followup_submit_label'
+    'followup_name_placeholder', 'followup_email_placeholder', 'followup_phone_placeholder', 'followup_submit_label',
+    'ooo_enabled', 'ooo_timezone', 'ooo_schedule', 'ooo_contact_form_delay_seconds', 'ooo_message',
+    'contact_form_fields', 'agent_avatar_urls',
+    'waiting_status_text', 'waiting_prompt_delay_seconds', 'waiting_prompt_question', 'waiting_prompt_keep_label', 'waiting_prompt_contact_label'
   ];
   const update = db.prepare('INSERT INTO widget_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
   for (const key of allowed) {
     if (req.body[key] === undefined) continue;
-    const val = key === 'agent_display_names' && typeof req.body[key] === 'object'
-      ? JSON.stringify(req.body[key])
-      : String(req.body[key]);
+    let val;
+    if ((key === 'agent_display_names' || key === 'ooo_schedule' || key === 'contact_form_fields' || key === 'agent_avatar_urls') && typeof req.body[key] === 'object') {
+      val = JSON.stringify(req.body[key]);
+    } else {
+      val = String(req.body[key]);
+    }
     update.run(key, val);
   }
   const rows = db.prepare('SELECT key, value FROM widget_settings').all();

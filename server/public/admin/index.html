@@ -35,6 +35,13 @@
     .reply-form button:hover { background: #1d4ed8; }
     .settings-form label { display: block; margin-bottom: 4px; font-weight: 500; color: #334155; }
     .settings-form input, .settings-form select { width: 100%; max-width: 320px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 14px; }
+    .ooo-day { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .ooo-day label { min-width: 80px; margin: 0; font-weight: normal; }
+    .ooo-day input { max-width: 80px; margin-bottom: 0; }
+    .contact-field-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; padding: 8px; background: #f8fafc; border-radius: 6px; }
+    .contact-field-row input, .contact-field-row select { margin-bottom: 0; max-width: 120px; }
+    .contact-field-row input.wide { max-width: 140px; }
+    .contact-field-row .remove-field { padding: 4px 10px; font-size: 12px; }
     .settings-form button { margin-top: 8px; }
     .error { background: #fef2f2; color: #991b1b; padding: 12px; border-radius: 8px; margin-bottom: 16px; }
     .user { font-size: 14px; color: #475569; }
@@ -71,6 +78,22 @@
         <div class="reply-form">
           <textarea id="reply-text" placeholder="Type your reply..."></textarea>
           <button type="button" id="reply-send" class="btn btn-primary">Send</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2 style="margin:0 0 16px;font-size:1.1rem">Out of office</h2>
+        <p style="margin:0 0 12px;color:#64748b;font-size:13px">When enabled, outside the hours below visitors see an out-of-office message and can leave contact details.</p>
+        <div class="settings-form" id="ooo-form">
+          <label><input type="checkbox" name="ooo_enabled" value="1"> Enable out of office</label>
+          <label style="margin-top:8px">Timezone (e.g. America/Chicago)</label>
+          <input type="text" name="ooo_timezone" placeholder="America/Chicago">
+          <label style="margin-top:8px">Office hours (leave start/end empty for closed that day). Use 24h format HH:MM.</label>
+          <div id="ooo-schedule" style="margin-bottom:14px"></div>
+          <label>Out of office message (shown when closed)</label>
+          <input type="text" name="ooo_message" placeholder="We're currently out of office. Leave your details and we'll get back to you.">
+          <label>When out of office: delay before showing contact form (seconds). Use 0 to show immediately.</label>
+          <input type="number" name="ooo_contact_form_delay_seconds" min="0" max="300" value="0">
+          <button type="button" id="ooo-save" class="btn btn-primary">Save out of office</button>
         </div>
       </div>
       <div class="card">
@@ -111,6 +134,8 @@
           <label style="margin-top:8px"><input type="checkbox" name="sound_enabled" value="1" checked> Play sound when visitor receives a message</label>
           <label style="margin-top:12px">Agent display names (one per line: <code>email=Display Name</code>, e.g. <code>adam@elevated-roofing.com=Adam</code>)</label>
           <textarea name="agent_display_names" rows="4" placeholder="adam@elevated-roofing.com=Adam&#10;drew@elevated-roofing.com=Drew&#10;chris@elevated-roofing.com=Chris" style="width:100%;max-width:400px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;font-size:13px"></textarea>
+          <label style="margin-top:8px">Agent avatar URLs (one per line: <code>email=URL</code>, e.g. <code>adam@elevated-roofing.com=https://..../photo.jpg</code>)</label>
+          <textarea name="agent_avatar_urls" rows="3" placeholder="adam@elevated-roofing.com=https://example.com/adam.jpg" style="width:100%;max-width:400px;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;font-size:13px"></textarea>
           <hr style="margin:16px 0;border:0;border-top:1px solid #e2e8f0">
           <h3 style="margin:0 0 10px;font-size:1rem">No-reply follow-up form</h3>
           <p style="margin:0 0 12px;color:#64748b;font-size:13px">If the visitor gets no agent reply for a set time, show a form to collect name and email or phone so you can follow up.</p>
@@ -129,6 +154,24 @@
           <input type="text" name="followup_phone_placeholder" placeholder="Phone">
           <label>Submit button label</label>
           <input type="text" name="followup_submit_label" placeholder="Send">
+          <hr style="margin:16px 0;border:0;border-top:1px solid #e2e8f0">
+          <h3 style="margin:0 0 10px;font-size:1rem">Waiting on team</h3>
+          <p style="margin:0 0 12px;color:#64748b;font-size:13px">After the visitor sends their first message, show a status and then a prompt to keep waiting or leave contact info.</p>
+          <label>Status text (e.g. &quot;Waiting on team member&quot;)</label>
+          <input type="text" name="waiting_status_text" placeholder="Waiting on team member">
+          <label>Delay before showing prompt (seconds)</label>
+          <input type="number" name="waiting_prompt_delay_seconds" min="0" max="600" value="120">
+          <label>Prompt question</label>
+          <input type="text" name="waiting_prompt_question" placeholder="Would you like to keep waiting or have someone contact you?">
+          <label>&quot;Keep waiting&quot; button label</label>
+          <input type="text" name="waiting_prompt_keep_label" placeholder="Keep waiting">
+          <label>&quot;Contact me&quot; button label</label>
+          <input type="text" name="waiting_prompt_contact_label" placeholder="Have someone contact me">
+          <hr style="margin:16px 0;border:0;border-top:1px solid #e2e8f0">
+          <h3 style="margin:0 0 10px;font-size:1rem">Contact form fields</h3>
+          <p style="margin:0 0 12px;color:#64748b;font-size:13px">Customize which fields the follow-up / contact form shows. Field ID is used as the submission key (e.g. name, email, phone).</p>
+          <div id="contact-form-fields-list"></div>
+          <button type="button" id="add-contact-field" class="btn btn-ghost" style="margin-bottom:16px">Add field</button>
           <button type="submit" class="btn btn-primary">Save settings</button>
         </form>
       </div>
@@ -200,11 +243,14 @@
           document.getElementById('conv-meta').textContent = header + 'Visitor: ' + (c.visitor_id || id) + ' · Started ' + (c.created_at ? new Date(c.created_at).toLocaleString() : '');
           var contactEl = document.getElementById('conv-contact');
           if (contactEl) {
-            if (c.contact_email || c.contact_phone) {
-              var parts = [];
-              if (c.contact_name) parts.push('Name: ' + c.contact_name);
-              if (c.contact_email) parts.push('Email: ' + c.contact_email);
-              if (c.contact_phone) parts.push('Phone: ' + c.contact_phone);
+            var parts = [];
+            if (c.contact_name) parts.push('Name: ' + c.contact_name);
+            if (c.contact_email) parts.push('Email: ' + c.contact_email);
+            if (c.contact_phone) parts.push('Phone: ' + c.contact_phone);
+            var extra = {};
+            try { if (c.contact_extra) extra = JSON.parse(c.contact_extra); } catch (e) {}
+            Object.keys(extra).forEach(function(k) { parts.push(k + ': ' + extra[k]); });
+            if (parts.length > 0) {
               contactEl.innerHTML = '<strong>Contact info left by visitor:</strong> ' + parts.join(' · ');
               contactEl.style.display = 'block';
             } else contactEl.style.display = 'none';
@@ -264,6 +310,22 @@
       function formatAgentDisplayNames(obj) {
         return Object.keys(obj || {}).map(function(email) { return email + '=' + (obj[email] || ''); }).join('\n');
       }
+      function parseAgentAvatarUrls(text) {
+        var out = {};
+        (text || '').split('\n').forEach(function(line) {
+          line = line.trim();
+          var eq = line.indexOf('=');
+          if (eq > 0) {
+            var email = line.slice(0, eq).trim().toLowerCase();
+            var url = line.slice(eq + 1).trim();
+            if (email && url) out[email] = url;
+          }
+        });
+        return out;
+      }
+      function formatAgentAvatarUrls(obj) {
+        return Object.keys(obj || {}).map(function(email) { return email + '=' + (obj[email] || ''); }).join('\n');
+      }
       function loadSettings() {
         api('/widget-settings').then(function(s) {
           var form = document.getElementById('settings-form');
@@ -287,6 +349,9 @@
             try { agentNames = JSON.parse(agentNames); } catch (e) { agentNames = {}; }
           }
           set('agent_display_names', formatAgentDisplayNames(agentNames));
+          var avatarUrls = s.agent_avatar_urls;
+          if (typeof avatarUrls === 'string') { try { avatarUrls = JSON.parse(avatarUrls); } catch (e) { avatarUrls = {}; } }
+          set('agent_avatar_urls', formatAgentAvatarUrls(avatarUrls || {}));
           setCheck('followup_enabled', s.followup_enabled === '1' || s.followup_enabled === 'true');
           set('followup_delay_minutes', s.followup_delay_minutes != null ? s.followup_delay_minutes : 2);
           set('followup_title', s.followup_title || "We'll get back to you");
@@ -295,8 +360,103 @@
           set('followup_email_placeholder', s.followup_email_placeholder || 'Email');
           set('followup_phone_placeholder', s.followup_phone_placeholder || 'Phone');
           set('followup_submit_label', s.followup_submit_label || 'Send');
+          set('waiting_status_text', s.waiting_status_text || 'Waiting on team member');
+          set('waiting_prompt_delay_seconds', s.waiting_prompt_delay_seconds != null ? s.waiting_prompt_delay_seconds : 120);
+          set('waiting_prompt_question', s.waiting_prompt_question || 'Would you like to keep waiting or have someone contact you?');
+          set('waiting_prompt_keep_label', s.waiting_prompt_keep_label || 'Keep waiting');
+          set('waiting_prompt_contact_label', s.waiting_prompt_contact_label || 'Have someone contact me');
+          var contactFields = [];
+          try { if (s.contact_form_fields) contactFields = typeof s.contact_form_fields === 'string' ? JSON.parse(s.contact_form_fields) : s.contact_form_fields; } catch (e) {}
+          if (!Array.isArray(contactFields)) contactFields = [];
+          renderContactFormFields(contactFields);
+          var oooForm = document.getElementById('ooo-form');
+          if (oooForm) {
+            oooForm.querySelector('[name="ooo_enabled"]').checked = s.ooo_enabled === '1' || s.ooo_enabled === 'true';
+            oooForm.querySelector('[name="ooo_timezone"]').value = s.ooo_timezone || 'America/Chicago';
+            oooForm.querySelector('[name="ooo_message"]').value = s.ooo_message || "We're currently out of office. Leave your details and we'll get back to you.";
+            oooForm.querySelector('[name="ooo_contact_form_delay_seconds"]').value = s.ooo_contact_form_delay_seconds != null ? s.ooo_contact_form_delay_seconds : '0';
+            var sched = {};
+            try { if (s.ooo_schedule) sched = JSON.parse(s.ooo_schedule); } catch (e) {}
+            renderOooSchedule(sched);
+          }
         });
       }
+      var DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      function renderOooSchedule(schedule) {
+        var el = document.getElementById('ooo-schedule');
+        if (!el) return;
+        el.innerHTML = '';
+        DAYS.forEach(function(day) {
+          var slot = schedule[day];
+          var start = (slot && slot.start) ? slot.start : '';
+          var end = (slot && slot.end) ? slot.end : '';
+          var label = day.charAt(0).toUpperCase() + day.slice(1);
+          var div = document.createElement('div');
+          div.className = 'ooo-day';
+          div.innerHTML = '<label>' + label + '</label><input type="text" data-day="' + day + '" data-field="start" placeholder="09:00" value="' + (start || '').replace(/"/g, '&quot;') + '"><span>-</span><input type="text" data-day="' + day + '" data-field="end" placeholder="17:00" value="' + (end || '').replace(/"/g, '&quot;') + '">';
+          el.appendChild(div);
+        });
+      }
+      function getOooScheduleFromForm() {
+        var out = {};
+        DAYS.forEach(function(day) {
+          var startEl = document.querySelector('#ooo-schedule input[data-day="' + day + '"][data-field="start"]');
+          var endEl = document.querySelector('#ooo-schedule input[data-day="' + day + '"][data-field="end"]');
+          var start = startEl ? startEl.value.trim() : '';
+          var end = endEl ? endEl.value.trim() : '';
+          if (start || end) out[day] = { start: start || null, end: end || null };
+          else out[day] = null;
+        });
+        return out;
+      }
+      function renderContactFormFields(fields) {
+        var el = document.getElementById('contact-form-fields-list');
+        if (!el) return;
+        el.innerHTML = '';
+        (fields || []).forEach(function(f, idx) {
+          var row = document.createElement('div');
+          row.className = 'contact-field-row';
+          row.innerHTML = '<input type="text" class="cff-id wide" placeholder="id" value="' + (f.id || '').replace(/"/g, '&quot;') + '">' +
+            '<select class="cff-type"><option value="text"' + (f.type === 'text' ? ' selected' : '') + '>text</option><option value="email"' + (f.type === 'email' ? ' selected' : '') + '>email</option><option value="tel"' + (f.type === 'tel' ? ' selected' : '') + '>tel</option></select>' +
+            '<input type="text" class="cff-label wide" placeholder="Label" value="' + (f.label || '').replace(/"/g, '&quot;') + '">' +
+            '<input type="text" class="cff-placeholder wide" placeholder="Placeholder" value="' + (f.placeholder || '').replace(/"/g, '&quot;') + '">' +
+            '<label style="margin:0;font-weight:normal"><input type="checkbox" class="cff-required" ' + (f.required ? 'checked' : '') + '> Required</label>' +
+            '<button type="button" class="btn btn-ghost remove-field">Remove</button>';
+          row.querySelector('.remove-field').onclick = function() { row.remove(); };
+          el.appendChild(row);
+        });
+      }
+      function getContactFormFieldsFromForm() {
+        var rows = document.querySelectorAll('#contact-form-fields-list .contact-field-row');
+        var out = [];
+        rows.forEach(function(row) {
+          var id = (row.querySelector('.cff-id') || {}).value || '';
+          if (!id) return;
+          out.push({
+            id: id.trim(),
+            type: (row.querySelector('.cff-type') || {}).value || 'text',
+            label: (row.querySelector('.cff-label') || {}).value || id,
+            placeholder: (row.querySelector('.cff-placeholder') || {}).value || '',
+            required: (row.querySelector('.cff-required') || {}).checked || false
+          });
+        });
+        return out;
+      }
+      document.getElementById('add-contact-field').addEventListener('click', function() {
+        renderContactFormFields(getContactFormFieldsFromForm().concat([{ id: '', type: 'text', label: '', placeholder: '', required: false }]));
+      });
+      document.getElementById('ooo-save').addEventListener('click', function() {
+        var oooForm = document.getElementById('ooo-form');
+        if (!oooForm) return;
+        var body = {
+          ooo_enabled: oooForm.querySelector('[name="ooo_enabled"]').checked ? '1' : '0',
+          ooo_timezone: (oooForm.querySelector('[name="ooo_timezone"]') || {}).value || 'America/Chicago',
+          ooo_schedule: getOooScheduleFromForm(),
+          ooo_message: (oooForm.querySelector('[name="ooo_message"]') || {}).value || '',
+          ooo_contact_form_delay_seconds: parseInt((oooForm.querySelector('[name="ooo_contact_form_delay_seconds"]') || {}).value, 10) || 0
+        };
+        api('/widget-settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function() { showError(''); loadSettings(); }).catch(showError);
+      });
       document.getElementById('settings-form').addEventListener('submit', function(e) {
         e.preventDefault();
         var form = e.target;
@@ -315,6 +475,7 @@
           show_agent_name: (form.querySelector('[name="show_agent_name"]') || {}).checked ? '1' : '0',
           sound_enabled: (form.querySelector('[name="sound_enabled"]') || {}).checked ? '1' : '0',
           agent_display_names: parseAgentDisplayNames(agentText),
+          agent_avatar_urls: parseAgentAvatarUrls((form.querySelector('[name="agent_avatar_urls"]') || {}).value || ''),
           followup_enabled: (form.querySelector('[name="followup_enabled"]') || {}).checked ? '1' : '0',
           followup_delay_minutes: parseInt((form.querySelector('[name="followup_delay_minutes"]') || {}).value, 10) || 2,
           followup_title: (form.querySelector('[name="followup_title"]') || {}).value || "We'll get back to you",
@@ -322,8 +483,15 @@
           followup_name_placeholder: (form.querySelector('[name="followup_name_placeholder"]') || {}).value || 'Name',
           followup_email_placeholder: (form.querySelector('[name="followup_email_placeholder"]') || {}).value || 'Email',
           followup_phone_placeholder: (form.querySelector('[name="followup_phone_placeholder"]') || {}).value || 'Phone',
-          followup_submit_label: (form.querySelector('[name="followup_submit_label"]') || {}).value || 'Send'
+          followup_submit_label: (form.querySelector('[name="followup_submit_label"]') || {}).value || 'Send',
+          waiting_status_text: (form.querySelector('[name="waiting_status_text"]') || {}).value || 'Waiting on team member',
+          waiting_prompt_delay_seconds: parseInt((form.querySelector('[name="waiting_prompt_delay_seconds"]') || {}).value, 10) || 120,
+          waiting_prompt_question: (form.querySelector('[name="waiting_prompt_question"]') || {}).value || 'Would you like to keep waiting or have someone contact you?',
+          waiting_prompt_keep_label: (form.querySelector('[name="waiting_prompt_keep_label"]') || {}).value || 'Keep waiting',
+          waiting_prompt_contact_label: (form.querySelector('[name="waiting_prompt_contact_label"]') || {}).value || 'Have someone contact me',
+          contact_form_fields: getContactFormFieldsFromForm()
         };
+        if (body.contact_form_fields.length === 0) body.contact_form_fields = [{ id: 'name', type: 'text', label: 'Name', placeholder: 'Name', required: false }, { id: 'email', type: 'email', label: 'Email', placeholder: 'Email', required: true }, { id: 'phone', type: 'tel', label: 'Phone', placeholder: 'Phone', required: false }];
         api('/widget-settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function() { showError(''); loadSettings(); }).catch(showError);
       });
       checkAuth();

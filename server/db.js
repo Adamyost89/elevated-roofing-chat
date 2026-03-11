@@ -66,6 +66,11 @@ function initDb() {
   } catch (e) {
     if (!/duplicate column/i.test(e.message)) throw e;
   }
+  try {
+    db.exec('ALTER TABLE conversations ADD COLUMN contact_extra TEXT');
+  } catch (e) {
+    if (!/duplicate column/i.test(e.message)) throw e;
+  }
 
   const row = db.prepare("SELECT value FROM widget_settings WHERE key = 'initialized'").get();
   if (!row) {
@@ -92,6 +97,40 @@ function initDb() {
     insert.run('followup_email_placeholder', 'Email');
     insert.run('followup_phone_placeholder', 'Phone');
     insert.run('followup_submit_label', 'Send');
+    insert.run('ooo_enabled', '0');
+    insert.run('ooo_timezone', 'America/Chicago');
+    insert.run('ooo_schedule', '{"monday":{"start":"09:00","end":"17:00"},"tuesday":{"start":"09:00","end":"17:00"},"wednesday":{"start":"09:00","end":"17:00"},"thursday":{"start":"09:00","end":"17:00"},"friday":{"start":"09:00","end":"17:00"},"saturday":null,"sunday":null}');
+    insert.run('ooo_contact_form_delay_seconds', '0');
+    insert.run('ooo_message', "We're currently out of office. Leave your details and we'll get back to you.");
+    insert.run('contact_form_fields', '[{"id":"name","type":"text","label":"Name","placeholder":"Name","required":false},{"id":"email","type":"email","label":"Email","placeholder":"Email","required":true},{"id":"phone","type":"tel","label":"Phone","placeholder":"Phone","required":false}]');
+  }
+  const oooKey = db.prepare("SELECT 1 FROM widget_settings WHERE key = 'ooo_enabled'").get();
+  if (!oooKey) {
+    const insert = db.prepare("INSERT INTO widget_settings (key, value) VALUES (?, ?)");
+    insert.run('ooo_enabled', '0');
+    insert.run('ooo_timezone', 'America/Chicago');
+    insert.run('ooo_schedule', '{"monday":{"start":"09:00","end":"17:00"},"tuesday":{"start":"09:00","end":"17:00"},"wednesday":{"start":"09:00","end":"17:00"},"thursday":{"start":"09:00","end":"17:00"},"friday":{"start":"09:00","end":"17:00"},"saturday":null,"sunday":null}');
+    insert.run('ooo_contact_form_delay_seconds', '0');
+    insert.run('ooo_message', "We're currently out of office. Leave your details and we'll get back to you.");
+  }
+  const contactFieldsKey = db.prepare("SELECT 1 FROM widget_settings WHERE key = 'contact_form_fields'").get();
+  if (!contactFieldsKey) {
+    const insert = db.prepare("INSERT INTO widget_settings (key, value) VALUES (?, ?)");
+    insert.run('contact_form_fields', '[{"id":"name","type":"text","label":"Name","placeholder":"Name","required":false},{"id":"email","type":"email","label":"Email","placeholder":"Email","required":true},{"id":"phone","type":"tel","label":"Phone","placeholder":"Phone","required":false}]');
+  }
+  const avatarKey = db.prepare("SELECT 1 FROM widget_settings WHERE key = 'agent_avatar_urls'").get();
+  if (!avatarKey) {
+    const insert = db.prepare("INSERT INTO widget_settings (key, value) VALUES (?, ?)");
+    insert.run('agent_avatar_urls', '{}');
+  }
+  const waitingKey = db.prepare("SELECT 1 FROM widget_settings WHERE key = 'waiting_status_text'").get();
+  if (!waitingKey) {
+    const insert = db.prepare("INSERT INTO widget_settings (key, value) VALUES (?, ?)");
+    insert.run('waiting_status_text', 'Waiting on team member');
+    insert.run('waiting_prompt_delay_seconds', '120');
+    insert.run('waiting_prompt_question', 'Would you like to keep waiting or have someone contact you?');
+    insert.run('waiting_prompt_keep_label', 'Keep waiting');
+    insert.run('waiting_prompt_contact_label', 'Have someone contact me');
   }
 }
 

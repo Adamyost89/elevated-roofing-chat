@@ -43,6 +43,7 @@
     show_agent_name: true,
     sound_enabled: true,
     agent_display_names: {},
+    agent_avatar_urls: {},
     followup_enabled: true,
     followup_delay_minutes: 2,
     followup_title: "We'll get back to you",
@@ -50,12 +51,30 @@
     followup_name_placeholder: 'Name',
     followup_email_placeholder: 'Email',
     followup_phone_placeholder: 'Phone',
-    followup_submit_label: 'Send'
+    followup_submit_label: 'Send',
+    ooo_enabled: false,
+    ooo_timezone: 'America/Chicago',
+    ooo_schedule: null,
+    ooo_contact_form_delay_seconds: 0,
+    ooo_message: "We're currently out of office. Leave your details and we'll get back to you.",
+    contact_form_fields: [
+      { id: 'name', type: 'text', label: 'Name', placeholder: 'Name', required: false },
+      { id: 'email', type: 'email', label: 'Email', placeholder: 'Email', required: true },
+      { id: 'phone', type: 'tel', label: 'Phone', placeholder: 'Phone', required: false }
+    ],
+    waiting_status_text: 'Waiting on team member',
+    waiting_prompt_delay_seconds: 120,
+    waiting_prompt_question: 'Would you like to keep waiting or have someone contact you?',
+    waiting_prompt_keep_label: 'Keep waiting',
+    waiting_prompt_contact_label: 'Have someone contact me'
   };
   var lastShownAgentKey = null;
   var autoOpenTimer = null;
   var windowIsOpen = false;
   var followupTimer = null;
+  var oooFormTimer = null;
+  var waitingPromptTimer = null;
+  var waitingPromptShown = false;
   var contactSubmitted = false;
   var hasAgentReplied = false;
 
@@ -86,6 +105,7 @@
           settings.show_agent_name = s.show_agent_name !== false;
           settings.sound_enabled = s.sound_enabled !== false && s.sound_enabled !== '0';
           settings.agent_display_names = s.agent_display_names || {};
+          settings.agent_avatar_urls = s.agent_avatar_urls || {};
           settings.followup_enabled = s.followup_enabled !== false;
           settings.followup_delay_minutes = Math.max(1, parseInt(s.followup_delay_minutes, 10) || 2);
           settings.followup_title = s.followup_title || settings.followup_title;
@@ -94,6 +114,19 @@
           settings.followup_email_placeholder = s.followup_email_placeholder || 'Email';
           settings.followup_phone_placeholder = s.followup_phone_placeholder || 'Phone';
           settings.followup_submit_label = s.followup_submit_label || 'Send';
+          settings.ooo_enabled = s.ooo_enabled === true || s.ooo_enabled === '1';
+          settings.ooo_timezone = s.ooo_timezone || 'America/Chicago';
+          settings.ooo_schedule = s.ooo_schedule || null;
+          settings.ooo_contact_form_delay_seconds = Math.max(0, parseInt(s.ooo_contact_form_delay_seconds, 10) || 0);
+          settings.ooo_message = s.ooo_message || "We're currently out of office. Leave your details and we'll get back to you.";
+          if (Array.isArray(s.contact_form_fields) && s.contact_form_fields.length > 0) {
+            settings.contact_form_fields = s.contact_form_fields;
+          }
+          settings.waiting_status_text = s.waiting_status_text || 'Waiting on team member';
+          settings.waiting_prompt_delay_seconds = Math.max(0, parseInt(s.waiting_prompt_delay_seconds, 10) || 120);
+          settings.waiting_prompt_question = s.waiting_prompt_question || 'Would you like to keep waiting or have someone contact you?';
+          settings.waiting_prompt_keep_label = s.waiting_prompt_keep_label || 'Keep waiting';
+          settings.waiting_prompt_contact_label = s.waiting_prompt_contact_label || 'Have someone contact me';
         } catch (e) {}
       }
       if (typeof cb === 'function') cb();
@@ -169,6 +202,32 @@
     return settings.agent_display_names[key] || settings.agent_display_names[email] || null;
   }
 
+  function getAgentAvatarUrl(email) {
+    if (!email || !settings.agent_avatar_urls) return null;
+    var key = (email || '').toLowerCase();
+    return settings.agent_avatar_urls[key] || settings.agent_avatar_urls[email] || null;
+  }
+
+  function isOutOfOffice() {
+    if (!settings.ooo_enabled || !settings.ooo_schedule) return false;
+    try {
+      var now = new Date();
+      var tz = settings.ooo_timezone || 'America/Chicago';
+      var dayPart = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: tz }).format(now);
+      var dayKey = dayPart.toLowerCase();
+      var slot = settings.ooo_schedule[dayKey];
+      if (slot == null || (typeof slot === 'object' && slot.start == null)) return true;
+      var timePart = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz }).format(now);
+      var current = timePart.replace(':', '');
+      var start = (slot.start || '').replace(':', '');
+      var end = (slot.end || '').replace(':', '');
+      if (!start || !end) return true;
+      return current < start || current >= end;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function appendMessage(msg) {
     var list = root.querySelector('.er-chat-messages');
     if (!list) return;
@@ -182,7 +241,18 @@
         lastShownAgentKey = key;
         var joined = document.createElement('div');
         joined.className = 'er-chat-agent-joined';
-        joined.textContent = 'Now chatting with ' + label;
+        var avatarUrl = getAgentAvatarUrl(msg.agent_email || raw);
+        if (avatarUrl) {
+          var img = document.createElement('img');
+          img.className = 'er-chat-agent-avatar';
+          img.src = avatarUrl;
+          img.alt = '';
+          joined.appendChild(img);
+        }
+        var text = document.createElement('span');
+        text.className = 'er-chat-agent-joined-text';
+        text.textContent = 'Now chatting with ' + label;
+        joined.appendChild(text);
         list.appendChild(joined);
       }
     }
@@ -210,7 +280,8 @@
           var d = JSON.parse(xhr.responseText);
           var list = root.querySelector('.er-chat-messages');
           if (list) {
-            list.innerHTML = '<div class="er-chat-welcome">' + (settings.welcome_text || '') + '</div>';
+            var welcomeMsg = isOutOfOffice() ? (settings.ooo_message || '') : (settings.welcome_text || '');
+            list.innerHTML = '<div class="er-chat-welcome">' + (welcomeMsg || '').replace(/</g, '&lt;') + '</div>';
             lastShownAgentKey = null;
             (d.messages || []).forEach(appendMessage);
             var agentMsgs = (d.messages || []).filter(function(m) { return m.sender_type === 'agent' && m.agent_email; });
@@ -224,7 +295,11 @@
               if (w) w.style.display = 'none';
             }
             var lastMsg = (d.messages || [])[(d.messages || []).length - 1];
-            if (lastMsg && lastMsg.sender_type === 'visitor' && settings.followup_enabled && !contactSubmitted && !hasAgentReplied) scheduleFollowupTimer();
+            if (lastMsg && lastMsg.sender_type === 'visitor' && !contactSubmitted && !hasAgentReplied) {
+              showWaitingStatus();
+              scheduleWaitingPromptTimer();
+              if (settings.followup_enabled) scheduleFollowupTimer();
+            }
           }
         } catch (e) {}
       }
@@ -243,8 +318,14 @@
       if (xhr.status === 200) {
         try {
           var d = JSON.parse(xhr.responseText);
-          if (d.message) appendMessage(d.message);
-          if (settings.followup_enabled && !contactSubmitted && !hasAgentReplied) scheduleFollowupTimer();
+          if (d.message) {
+            appendMessage(d.message);
+            if (d.message.sender_type === 'visitor' && !contactSubmitted && !hasAgentReplied) {
+              showWaitingStatus();
+              scheduleWaitingPromptTimer();
+              if (settings.followup_enabled) scheduleFollowupTimer();
+            }
+          }
         } catch (e) {}
       }
     };
@@ -273,6 +354,68 @@
     if (box) box.classList.remove('er-chat-followup-visible');
   }
 
+  function showWaitingStatus() {
+    if (hasAgentReplied || contactSubmitted) return;
+    var list = root.querySelector('.er-chat-messages');
+    if (!list || list.querySelector('.er-chat-waiting-status')) return;
+    var hasVisitor = list.querySelector('.er-chat-msg.visitor');
+    if (!hasVisitor) return;
+    var status = document.createElement('div');
+    status.className = 'er-chat-waiting-status';
+    status.textContent = settings.waiting_status_text || 'Waiting on team member';
+    list.appendChild(status);
+    list.scrollTop = list.scrollHeight;
+  }
+
+  function cancelWaitingPromptTimer() {
+    if (waitingPromptTimer) {
+      clearTimeout(waitingPromptTimer);
+      waitingPromptTimer = null;
+    }
+    var status = root.querySelector('.er-chat-waiting-status');
+    if (status) status.remove();
+    var prompt = root.querySelector('.er-chat-waiting-prompt');
+    if (prompt) prompt.remove();
+  }
+
+  function scheduleWaitingPromptTimer() {
+    if (waitingPromptTimer) clearTimeout(waitingPromptTimer);
+    waitingPromptTimer = null;
+    if (hasAgentReplied || contactSubmitted || waitingPromptShown) return;
+    var delaySec = (settings.waiting_prompt_delay_seconds || 120) * 1000;
+    if (delaySec <= 0) return;
+    waitingPromptTimer = setTimeout(function () {
+      waitingPromptTimer = null;
+      if (hasAgentReplied || contactSubmitted || waitingPromptShown) return;
+      waitingPromptShown = true;
+      var list = root.querySelector('.er-chat-messages');
+      if (!list) return;
+      var prompt = document.createElement('div');
+      prompt.className = 'er-chat-waiting-prompt';
+      var question = (settings.waiting_prompt_question || '').replace(/</g, '&lt;');
+      var keepLabel = (settings.waiting_prompt_keep_label || 'Keep waiting').replace(/</g, '&lt;');
+      var contactLabel = (settings.waiting_prompt_contact_label || 'Have someone contact me').replace(/</g, '&lt;');
+      prompt.innerHTML = '<div class="er-chat-waiting-prompt-text">' + question + '</div>' +
+        '<div class="er-chat-waiting-prompt-buttons">' +
+        '<button type="button" class="er-chat-waiting-btn er-chat-waiting-keep">' + keepLabel + '</button>' +
+        '<button type="button" class="er-chat-waiting-btn er-chat-waiting-contact">' + contactLabel + '</button>' +
+        '</div>';
+      var keepBtn = prompt.querySelector('.er-chat-waiting-keep');
+      var contactBtn = prompt.querySelector('.er-chat-waiting-contact');
+      keepBtn.onclick = function () {
+        prompt.remove();
+      };
+      contactBtn.onclick = function () {
+        prompt.remove();
+        var box = root.querySelector('.er-chat-followup');
+        if (box) box.classList.add('er-chat-followup-visible');
+      };
+      contactBtn.style.backgroundColor = settings.primary_color || '#2563eb';
+      list.appendChild(prompt);
+      list.scrollTop = list.scrollHeight;
+    }, delaySec);
+  }
+
   function renderLauncher() {
     var el = document.createElement('button');
     el.className = 'er-chat-launcher ' + settings.position + (settings.button_style === 'icon_and_text' ? ' er-chat-launcher-with-text' : '');
@@ -299,25 +442,31 @@
       loadMessages();
       var wrap = document.createElement('div');
       wrap.className = 'er-chat-window ' + settings.position;
+      var ooo = isOutOfOffice();
+      var welcomeText = ooo ? (settings.ooo_message || '').replace(/</g, '&lt;') : (settings.welcome_text || '').replace(/</g, '&lt;');
       var followupTitle = (settings.followup_title || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
       var followupMessage = (settings.followup_message || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-      var followupNamePh = (settings.followup_name_placeholder || 'Name').replace(/"/g, '&quot;');
-      var followupEmailPh = (settings.followup_email_placeholder || 'Email').replace(/"/g, '&quot;');
-      var followupPhonePh = (settings.followup_phone_placeholder || 'Phone').replace(/"/g, '&quot;');
       var followupSubmitLabel = (settings.followup_submit_label || 'Send').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      var fields = settings.contact_form_fields || [];
+      var followupFieldsHtml = '';
+      for (var i = 0; i < fields.length; i++) {
+        var f = fields[i];
+        var tid = (f.type || 'text');
+        var ph = (f.placeholder || f.label || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        var lid = (f.label || f.id || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        followupFieldsHtml += '<label class="er-chat-followup-label">' + lid + '</label><input type="' + tid + '" class="er-chat-followup-field" data-field-id="' + (f.id || '').replace(/"/g, '&quot;') + '" placeholder="' + ph + '" ' + (f.required ? 'data-required="1"' : '') + ' />';
+      }
       wrap.innerHTML =
         '<div class="er-chat-header" style="background:' + settings.primary_color + '">' +
         '<h3>' + (settings.header_title || 'Chat with us').replace(/</g, '&lt;') + '</h3>' +
         '</div>' +
         '<div class="er-chat-messages">' +
-        '<div class="er-chat-welcome">' + (settings.welcome_text || '').replace(/</g, '&lt;') + '</div>' +
+        '<div class="er-chat-welcome">' + welcomeText + '</div>' +
         '</div>' +
         '<div class="er-chat-followup" aria-hidden="true">' +
         '<div class="er-chat-followup-title">' + followupTitle + '</div>' +
         '<div class="er-chat-followup-message">' + followupMessage + '</div>' +
-        '<input type="text" class="er-chat-followup-name" placeholder="' + followupNamePh + '" />' +
-        '<input type="email" class="er-chat-followup-email" placeholder="' + followupEmailPh + '" />' +
-        '<input type="tel" class="er-chat-followup-phone" placeholder="' + followupPhonePh + '" />' +
+        '<div class="er-chat-followup-fields">' + followupFieldsHtml + '</div>' +
         '<div class="er-chat-followup-error"></div>' +
         '<button type="button" class="er-chat-followup-submit" style="background:' + settings.primary_color + '">' + followupSubmitLabel + '</button>' +
         '<div class="er-chat-followup-thanks" style="display:none">Thanks! We\'ll be in touch.</div>' +
@@ -345,6 +494,7 @@
         if (msg.sender_type === 'agent') {
           hasAgentReplied = true;
           cancelFollowupTimer();
+          cancelWaitingPromptTimer();
         }
         origAppend(msg);
       };
@@ -365,20 +515,51 @@
 
       root.appendChild(wrap);
 
+      if (ooo && settings.followup_enabled) {
+        var delaySec = settings.ooo_contact_form_delay_seconds || 0;
+        if (delaySec <= 0) {
+          var box = wrap.querySelector('.er-chat-followup');
+          if (box) box.classList.add('er-chat-followup-visible');
+        } else {
+          if (oooFormTimer) clearTimeout(oooFormTimer);
+          oooFormTimer = setTimeout(function () {
+            oooFormTimer = null;
+            var box = root.querySelector('.er-chat-followup');
+            if (box) box.classList.add('er-chat-followup-visible');
+          }, delaySec * 1000);
+        }
+      }
+
       var followupBox = wrap.querySelector('.er-chat-followup');
       if (followupBox && settings.followup_enabled) {
-        var followupEmail = followupBox.querySelector('.er-chat-followup-email');
-        var followupPhone = followupBox.querySelector('.er-chat-followup-phone');
-        var followupName = followupBox.querySelector('.er-chat-followup-name');
         var followupError = followupBox.querySelector('.er-chat-followup-error');
         var followupThanks = followupBox.querySelector('.er-chat-followup-thanks');
         var followupSubmitBtn = followupBox.querySelector('.er-chat-followup-submit');
+        var followupFieldsEl = followupBox.querySelector('.er-chat-followup-fields');
         followupSubmitBtn.addEventListener('click', function () {
-          var email = (followupEmail && followupEmail.value || '').trim();
-          var phone = (followupPhone && followupPhone.value || '').trim();
-          if (!email && !phone) {
-            if (followupError) followupError.textContent = 'Please enter your email or phone.';
+          var inputs = followupBox.querySelectorAll('.er-chat-followup-field');
+          var payload = {};
+          var hasContact = false;
+          for (var i = 0; i < inputs.length; i++) {
+            var inp = inputs[i];
+            var id = inp.getAttribute('data-field-id');
+            if (id) payload[id] = (inp.value || '').trim();
+            if ((id === 'email' || id === 'phone') && payload[id]) hasContact = true;
+          }
+          var anyVal = false;
+          for (var k in payload) { if (payload[k]) anyVal = true; }
+          if (!anyVal) {
+            if (followupError) followupError.textContent = 'Please enter your contact details.';
             return;
+          }
+          var requiredInputs = followupBox.querySelectorAll('.er-chat-followup-field[data-required="1"]');
+          for (var j = 0; j < requiredInputs.length; j++) {
+            var r = requiredInputs[j];
+            var rid = r.getAttribute('data-field-id');
+            if (rid && !(payload[rid] || '').trim()) {
+              if (followupError) followupError.textContent = 'Please fill in all required fields.';
+              return;
+            }
           }
           if (followupError) followupError.textContent = '';
           followupSubmitBtn.disabled = true;
@@ -392,9 +573,7 @@
             if (xhr.status === 200) {
               followupBox.querySelector('.er-chat-followup-title').style.display = 'none';
               followupBox.querySelector('.er-chat-followup-message').style.display = 'none';
-              followupEmail.style.display = 'none';
-              followupPhone.style.display = 'none';
-              followupName.style.display = 'none';
+              if (followupFieldsEl) followupFieldsEl.style.display = 'none';
               followupSubmitBtn.style.display = 'none';
               if (followupThanks) followupThanks.style.display = 'block';
             } else {
@@ -402,11 +581,7 @@
               followupSubmitBtn.disabled = false;
             }
           };
-          xhr.send(JSON.stringify({
-            name: followupName ? followupName.value.trim() : '',
-            email: email,
-            phone: phone
-          }));
+          xhr.send(JSON.stringify(payload));
         });
       }
 
@@ -416,6 +591,7 @@
       closeBtn.textContent = '\u00D7';
       closeBtn.setAttribute('aria-label', 'Close chat');
       closeBtn.onclick = function () {
+        if (oooFormTimer) { clearTimeout(oooFormTimer); oooFormTimer = null; }
         wrap.remove();
         if (launcher) launcher.style.display = 'flex';
         windowIsOpen = false;
