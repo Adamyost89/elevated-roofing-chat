@@ -177,11 +177,17 @@
     } catch (e) {}
   }
 
+  var typingTimeout = null;
+  var typingDebounceTimer = null;
+  var composingTimer = null;
+  var lastComposingSend = 0;
+  var COMPOSING_THROTTLE_MS = 120;
+
   function connectWs() {
     if (!conversationId) return;
     var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var host = (BASE.match(/^https?:\/\/([^/]+)/) || [])[1] || window.location.host;
-    var url = proto + '//' + host + '/ws?conversation_id=' + encodeURIComponent(conversationId);
+    var url = proto + '//' + host + '/ws?conversation_id=' + encodeURIComponent(conversationId) + '&role=visitor';
     try {
       ws = new WebSocket(url);
       ws.onmessage = function (ev) {
@@ -190,10 +196,67 @@
           if (p.type === 'new_message' && p.message && p.message.sender_type === 'agent') {
             playNotificationSound();
             appendMessage(p.message);
+            hideTypingIndicator();
+          } else if (p.type === 'typing' && p.role === 'agent') {
+            showTypingIndicator();
           }
         } catch (e) {}
       };
     } catch (e) {}
+  }
+
+  function showTypingIndicator() {
+    var el = root.querySelector('.er-chat-typing');
+    if (el) {
+      el.style.display = 'block';
+    } else {
+      el = document.createElement('div');
+      el.className = 'er-chat-typing';
+      el.textContent = 'Team member is typing...';
+      var list = root.querySelector('.er-chat-messages');
+      if (list) list.appendChild(el);
+    }
+    if (typingTimeout) clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(hideTypingIndicator, 3000);
+  }
+
+  function hideTypingIndicator() {
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      typingTimeout = null;
+    }
+    var el = root.querySelector('.er-chat-typing');
+    if (el) el.style.display = 'none';
+  }
+
+  function sendTyping() {
+    if (ws && ws.readyState === 1) {
+      try {
+        ws.send(JSON.stringify({ type: 'typing', role: 'visitor' }));
+      } catch (e) {}
+    }
+  }
+
+  function sendComposing(text) {
+    if (ws && ws.readyState === 1) {
+      try {
+        ws.send(JSON.stringify({ type: 'composing', role: 'visitor', text: text || '' }));
+      } catch (e) {}
+    }
+  }
+
+  function scheduleComposingSend() {
+    var now = Date.now();
+    if (composingTimer) return;
+    var elapsed = now - lastComposingSend;
+    var delay = elapsed >= COMPOSING_THROTTLE_MS ? 0 : COMPOSING_THROTTLE_MS - elapsed;
+    composingTimer = setTimeout(function () {
+      composingTimer = null;
+      lastComposingSend = Date.now();
+      var input = root.querySelector('.er-chat-input');
+      var val = input ? input.value : '';
+      sendComposing(val);
+    }, delay);
   }
 
   function getAgentDisplayName(email) {
@@ -505,12 +568,21 @@
         if (!text) return;
         sendMessage(text);
         input.value = '';
+        sendComposing('');
       };
       input.onkeydown = function (e) {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           sendBtn.click();
         }
+      };
+      input.oninput = function () {
+        if (typingDebounceTimer) clearTimeout(typingDebounceTimer);
+        typingDebounceTimer = setTimeout(function () {
+          typingDebounceTimer = null;
+          sendTyping();
+        }, 300);
+        scheduleComposingSend();
       };
 
       root.appendChild(wrap);

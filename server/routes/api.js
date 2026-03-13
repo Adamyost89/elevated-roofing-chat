@@ -1,9 +1,36 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db');
-const { postMessageToThread } = require('../google-chat');
+const { postMessageToThread, SPACE_ID } = require('../google-chat');
 
 const router = express.Router();
+
+// Serialize thread creation per conversation so two quick visitor messages don't race.
+const threadCreatePromises = new Map();
+
+async function ensureThreadExists(conversationId, displayNumber) {
+  let promise = threadCreatePromises.get(conversationId);
+  if (promise) {
+    await promise;
+    return;
+  }
+  promise = (async () => {
+    try {
+      const db = getDb();
+      const conv = db.prepare('SELECT thread_name FROM conversations WHERE id = ?').get(conversationId);
+      if (conv && conv.thread_name) return;
+      const label = `Website chat #${displayNumber || 1}`;
+      const created = await postMessageToThread(conversationId, label, true);
+      const threadName = created?.thread?.name || created?.threadName || `spaces/${SPACE_ID}/threads/${conversationId}`;
+      db.prepare('UPDATE conversations SET thread_name = ? WHERE id = ?').run(threadName, conversationId);
+      console.log('Chat: saved thread_name for', conversationId, '->', threadName);
+    } finally {
+      threadCreatePromises.delete(conversationId);
+    }
+  })();
+  threadCreatePromises.set(conversationId, promise);
+  await promise;
+}
 
 function getOrCreateConversation(visitorId) {
   const db = getDb();
@@ -110,17 +137,8 @@ router.post('/conversations/:id/messages', async (req, res) => {
   db.prepare('INSERT INTO messages (conversation_id, sender_type, body) VALUES (?, ?, ?)').run(id, 'visitor', body);
 
   try {
-    if (!conv.thread_name) {
-      const num = conv.display_number || 1;
-      const label = `Website chat #${num}`;
-      const created = await postMessageToThread(id, label, true);
-      const threadName = created?.thread?.name || created?.threadName || `spaces/${require('../google-chat').SPACE_ID}/threads/${id}`;
-      db.prepare('UPDATE conversations SET thread_name = ? WHERE id = ?').run(threadName, id);
-      console.log('Chat: saved thread_name for', id, '->', threadName);
-      await postMessageToThread(id, body, true);
-    } else {
-      await postMessageToThread(id, body, true);
-    }
+    await ensureThreadExists(id, conv.display_number);
+    await postMessageToThread(id, body, true);
   } catch (err) {
     console.error('Google Chat post failed:', err.message);
   }

@@ -8,6 +8,7 @@ function attach(server) {
   wss.on('connection', (ws, req) => {
     const url = new URL(req.url || '', `http://${req.headers.host}`);
     const conversationId = url.searchParams.get('conversation_id');
+    const role = url.searchParams.get('role') || 'visitor';
     if (!conversationId) {
       ws.close();
       return;
@@ -17,6 +18,26 @@ function attach(server) {
     }
     conversationSockets.get(conversationId).add(ws);
     ws.conversationId = conversationId;
+    ws.role = role;
+
+    ws.on('message', (raw) => {
+      try {
+        const payload = JSON.parse(raw.toString());
+        if (!payload || !payload.type) return;
+        if (payload.type === 'typing') {
+          wss.broadcastToConversation(ws.conversationId, {
+            type: 'typing',
+            role: ws.role,
+          });
+        } else if (payload.type === 'composing') {
+          wss.broadcastToConversation(ws.conversationId, {
+            type: 'composing',
+            role: ws.role,
+            text: typeof payload.text === 'string' ? payload.text : '',
+          });
+        }
+      } catch (_) {}
+    });
 
     ws.on('close', () => {
       const set = conversationSockets.get(ws.conversationId);

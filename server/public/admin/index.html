@@ -75,6 +75,7 @@
         <div id="conv-meta" class="meta"></div>
         <div id="conv-contact" class="meta" style="margin-top:8px;padding:8px 0;border-top:1px solid #e2e8f0;display:none"></div>
         <div class="thread" id="thread-messages"></div>
+        <div id="conv-typing" class="meta" style="display:none;font-style:italic;margin-bottom:8px;color:#64748b">Visitor is typing: <span id="conv-composing-text"></span></div>
         <div class="reply-form">
           <textarea id="reply-text" placeholder="Type your reply..."></textarea>
           <button type="button" id="reply-send" class="btn btn-primary">Send</button>
@@ -233,11 +234,71 @@
         }).catch(showError);
       }
       var currentConvId = null;
+      var convWs = null;
+      var convTypingTimeout = null;
+      var convTypingDebounce = null;
+      function connectConvWs(conversationId) {
+        if (convWs) {
+          convWs.close();
+          convWs = null;
+        }
+        if (convTypingTimeout) clearTimeout(convTypingTimeout);
+        convTypingTimeout = null;
+        var convTypingEl = document.getElementById('conv-typing');
+        var convComposingEl = document.getElementById('conv-composing-text');
+        if (convTypingEl) convTypingEl.style.display = 'none';
+        if (convComposingEl) convComposingEl.textContent = '';
+        var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var url = proto + '//' + window.location.host + '/ws?conversation_id=' + encodeURIComponent(conversationId) + '&role=agent';
+        try {
+          convWs = new WebSocket(url);
+          convWs.onmessage = function(ev) {
+            try {
+              var p = JSON.parse(ev.data);
+              if (p.role !== 'visitor') return;
+              if (p.type === 'typing') {
+                var el = document.getElementById('conv-typing');
+                if (el) el.style.display = 'block';
+                if (convTypingTimeout) clearTimeout(convTypingTimeout);
+                convTypingTimeout = setTimeout(function() {
+                  convTypingTimeout = null;
+                  var t = document.getElementById('conv-typing');
+                  var c = document.getElementById('conv-composing-text');
+                  if (t) t.style.display = 'none';
+                  if (c) c.textContent = '';
+                }, 3000);
+              } else if (p.type === 'composing') {
+                var composingEl = document.getElementById('conv-composing-text');
+                var typingEl = document.getElementById('conv-typing');
+                var text = (p.text || '').trim();
+                if (composingEl) composingEl.textContent = text;
+                if (typingEl) typingEl.style.display = text ? 'block' : 'none';
+                if (convTypingTimeout) clearTimeout(convTypingTimeout);
+                convTypingTimeout = setTimeout(function() {
+                  convTypingTimeout = null;
+                  var t = document.getElementById('conv-typing');
+                  var c = document.getElementById('conv-composing-text');
+                  if (t) t.style.display = 'none';
+                  if (c) c.textContent = '';
+                }, 3000);
+              }
+            } catch (e) {}
+          };
+        } catch (e) {}
+      }
+      function sendAgentTyping() {
+        if (convWs && convWs.readyState === 1) {
+          try {
+            convWs.send(JSON.stringify({ type: 'typing', role: 'agent' }));
+          } catch (e) {}
+        }
+      }
       function openConversation(id) {
         currentConvId = id;
         document.getElementById('conversation-detail').style.display = 'block';
         document.getElementById('conv-meta').textContent = 'Conversation ' + id;
         document.getElementById('reply-text').value = '';
+        connectConvWs(id);
         api('/conversations/' + id).then(function(c) {
           var header = c.display_number ? 'Website chat #' + c.display_number + ' · ' : '';
           document.getElementById('conv-meta').textContent = header + 'Visitor: ' + (c.visitor_id || id) + ' · Started ' + (c.created_at ? new Date(c.created_at).toLocaleString() : '');
@@ -279,6 +340,13 @@
           wrap.appendChild(div);
           loadConversations();
         }).catch(showError);
+      });
+      document.getElementById('reply-text').addEventListener('input', function() {
+        if (convTypingDebounce) clearTimeout(convTypingDebounce);
+        convTypingDebounce = setTimeout(function() {
+          convTypingDebounce = null;
+          sendAgentTyping();
+        }, 300);
       });
       function loadChatSyncStatus() {
         api('/chat-sync/status').then(function(d) {
