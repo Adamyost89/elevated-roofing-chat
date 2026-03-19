@@ -17,7 +17,7 @@ async function poll() {
     console.error('Chat poll list error:', err.message);
     return;
   }
-  if (!data || !data.messages) {
+  if (!data || !Array.isArray(data.messages)) {
     if (!poll._loggedNoData) {
       poll._loggedNoData = true;
       console.log('Chat poll: list returned no data (403 or empty). Agent replies in Google Chat will not sync to the widget. Use Admin panel to reply instead.');
@@ -25,6 +25,26 @@ async function poll() {
     return;
   }
   poll._loggedNoData = false;
+
+  // Google Chat list pagination may return oldest messages first.
+  // Fetch additional pages so we can see new replies reliably.
+  let messages = Array.isArray(data.messages) ? data.messages.slice() : [];
+  let nextPageToken = data.nextPageToken || null;
+  let pageGuard = 0;
+  while (nextPageToken && pageGuard < 20) {
+    pageGuard += 1;
+    let page;
+    try {
+      page = await listMessages(100, nextPageToken);
+    } catch (err) {
+      console.error('Chat poll page list error:', err.message);
+      break;
+    }
+    if (!page || !Array.isArray(page.messages) || page.messages.length === 0) break;
+    messages = messages.concat(page.messages);
+    nextPageToken = page.nextPageToken || null;
+  }
+  data.messages = messages;
 
   // Build a lightweight thread -> display_number map from bot starter messages.
   // This lets us recover mapping for older conversations missing thread_name.
