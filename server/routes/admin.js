@@ -69,7 +69,12 @@ router.post('/conversations/:id/reply', requireAuth, async (req, res) => {
   db.prepare('INSERT INTO messages (conversation_id, sender_type, body, agent_email) VALUES (?, ?, ?, ?)').run(id, 'agent', body, agentEmail);
 
   try {
-    await postMessageToThread(id, body, false);
+    const posted = await postMessageToThread(id, body, false);
+    // Backfill thread_name for older conversations that predate thread persistence.
+    const postedThreadName = posted?.thread?.name || posted?.threadName || null;
+    if (postedThreadName) {
+      db.prepare('UPDATE conversations SET thread_name = COALESCE(thread_name, ?) WHERE id = ?').run(postedThreadName, id);
+    }
   } catch (err) {
     console.error('Google Chat post reply failed:', err.message);
   }

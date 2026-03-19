@@ -26,6 +26,24 @@ async function poll() {
   }
   poll._loggedNoData = false;
 
+  // Build a lightweight thread -> display_number map from bot starter messages.
+  // This lets us recover mapping for older conversations missing thread_name.
+  const threadToDisplayNumber = new Map();
+  for (const m of data.messages) {
+    const senderType = String(m.sender?.type || '').toUpperCase();
+    if (senderType !== 'BOT') continue;
+    const threadName = typeof m.thread === 'string' ? m.thread : (m.thread?.name || '');
+    if (!threadName) continue;
+    const text = String(m.text || m.argumentText || '').trim();
+    const match = text.match(/website chat\s*#\s*(\d+)/i);
+    if (!match) continue;
+    const displayNumber = parseInt(match[1], 10);
+    if (!Number.isFinite(displayNumber) || displayNumber <= 0) continue;
+    if (!threadToDisplayNumber.has(threadName)) {
+      threadToDisplayNumber.set(threadName, displayNumber);
+    }
+  }
+
   const humanCount = data.messages.filter((m) => String(m.sender?.type || '').toUpperCase() !== 'BOT').length;
   if (humanCount > 0 && data.messages[0]?.thread) {
     const sample = typeof data.messages[0].thread === 'string' ? data.messages[0].thread : data.messages[0].thread?.name;
@@ -49,7 +67,17 @@ async function poll() {
     if (exists) continue;
 
     const threadIdPart = (threadName.split('/threads/')[1] || '').split('/')[0] || '';
-    const conv = db.prepare('SELECT id FROM conversations WHERE thread_name = ? OR id = ? OR thread_name LIKE ?').get(threadName, threadIdPart, '%/' + threadIdPart);
+    let conv = db.prepare('SELECT id FROM conversations WHERE thread_name = ? OR id = ? OR thread_name LIKE ?').get(threadName, threadIdPart, '%/' + threadIdPart);
+    if (!conv) {
+      const inferredDisplayNumber = threadToDisplayNumber.get(threadName);
+      if (inferredDisplayNumber) {
+        conv = db.prepare('SELECT id FROM conversations WHERE display_number = ?').get(inferredDisplayNumber);
+        if (conv) {
+          db.prepare('UPDATE conversations SET thread_name = COALESCE(thread_name, ?) WHERE id = ?').run(threadName, conv.id);
+          console.log('Chat poll: recovered thread mapping for conversation', conv.id, 'from display #', inferredDisplayNumber);
+        }
+      }
+    }
     if (!conv) {
       noMatchThreads.add(threadName);
       continue;

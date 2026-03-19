@@ -186,7 +186,11 @@ router.post('/conversations/:id/contact', async (req, res) => {
   const summary = summaryParts.join('\n');
 
   try {
-    await postMessageToThread(id, summary, true);
+    const posted = await postMessageToThread(id, summary, true);
+    const postedThreadName = posted?.thread?.name || posted?.threadName || null;
+    if (postedThreadName) {
+      db.prepare('UPDATE conversations SET thread_name = COALESCE(thread_name, ?) WHERE id = ?').run(postedThreadName, id);
+    }
   } catch (err) {
     console.error('Google Chat contact post failed:', err.message);
   }
