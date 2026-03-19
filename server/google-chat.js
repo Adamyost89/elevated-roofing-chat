@@ -73,17 +73,17 @@ async function listMessages(pageSize = 100, pageToken = null) {
     try {
       const chat = google.chat({ version: 'v1', auth: userAuth });
       const res = await chat.spaces.messages.list(listOpts);
+      listMessages._loggedUserAuthFail = false;
       return res.data;
     } catch (err) {
       if (err.code === 401 || err.message?.includes('invalid_grant') || err.message?.includes('Token has been expired')) {
         if (!listMessages._loggedUserAuthFail) {
           listMessages._loggedUserAuthFail = true;
-          console.warn('Chat list (user auth): token expired or invalid. Reconnect in Admin -> Connect Google Chat.');
+          console.warn('Chat list (user auth): token expired or invalid. Reconnect in Admin -> Connect Google Chat. Falling back to app auth.');
         }
       } else {
         console.error('Chat list (user auth) error:', err.message);
       }
-      return null;
     }
   }
 
