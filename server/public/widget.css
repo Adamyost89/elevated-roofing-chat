@@ -53,6 +53,28 @@
   font-size: 15px;
   font-weight: 500;
 }
+.er-chat-launcher-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  padding: 0 4px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  line-height: 1;
+}
+.er-chat-launcher.er-chat-launcher-with-text .er-chat-launcher-badge {
+  top: -4px;
+  right: -4px;
+}
 .er-chat-window {
   position: fixed;
   width: 380px;

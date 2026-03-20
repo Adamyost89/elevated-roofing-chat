@@ -77,10 +77,56 @@
   var waitingPromptShown = false;
   var contactSubmitted = false;
   var hasAgentReplied = false;
+  var unreadCount = 0;
+  var SESSION_CLOSE_KEY = 'er_chat_closed_session';
 
   function getCookie(name) {
     var m = document.cookie.match(new RegExp('(?:^| )' + name + '=([^;]+)'));
     return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function isMobileDevice() {
+    try {
+      if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) return true;
+      var ua = (navigator && navigator.userAgent) || '';
+      var touchCapable = ('ontouchstart' in window) || (navigator && navigator.maxTouchPoints > 0);
+      return /android|iphone|ipad|ipod|mobile/i.test(ua) || touchCapable;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function isClosedForSession() {
+    try {
+      return sessionStorage.getItem(SESSION_CLOSE_KEY) === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function markClosedForSession() {
+    try {
+      sessionStorage.setItem(SESSION_CLOSE_KEY, '1');
+    } catch (e) {}
+  }
+
+  function updateLauncherBadge() {
+    var launcher = root.querySelector('.er-chat-launcher');
+    if (!launcher) return;
+    var badge = launcher.querySelector('.er-chat-launcher-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'er-chat-launcher-badge';
+      launcher.appendChild(badge);
+    }
+    if (unreadCount > 0) {
+      badge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+      badge.style.display = 'inline-flex';
+      launcher.setAttribute('aria-label', (settings.button_label || 'Open chat') + ' (' + unreadCount + ' unread)');
+    } else {
+      badge.style.display = 'none';
+      launcher.setAttribute('aria-label', settings.button_label || 'Open chat');
+    }
   }
 
   function loadSettings(cb) {
@@ -195,6 +241,10 @@
           var p = JSON.parse(ev.data);
           if (p.type === 'new_message' && p.message && p.message.sender_type === 'agent') {
             playNotificationSound();
+            if (!windowIsOpen) {
+              unreadCount += 1;
+              updateLauncherBadge();
+            }
             appendMessage(p.message);
             hideTypingIndicator();
           } else if (p.type === 'typing' && p.role === 'agent') {
@@ -491,11 +541,14 @@
       showWindow();
     };
     root.appendChild(el);
+    updateLauncherBadge();
   }
 
   function showWindow() {
     if (root.querySelector('.er-chat-window')) return;
     windowIsOpen = true;
+    unreadCount = 0;
+    updateLauncherBadge();
     if (autoOpenTimer) {
       clearTimeout(autoOpenTimer);
       autoOpenTimer = null;
@@ -664,6 +717,7 @@
       closeBtn.setAttribute('aria-label', 'Close chat');
       closeBtn.onclick = function () {
         if (oooFormTimer) { clearTimeout(oooFormTimer); oooFormTimer = null; }
+        markClosedForSession();
         wrap.remove();
         if (launcher) launcher.style.display = 'flex';
         windowIsOpen = false;
@@ -678,6 +732,7 @@
     loadSettings(function () {
       if (settings.button_always_visible) {
         renderLauncher();
+        if (isMobileDevice() || isClosedForSession()) return;
         var popupDelay = (settings.chatbox_popup_delay_seconds || 0) * 1000;
         if (popupDelay > 0) {
           autoOpenTimer = setTimeout(function () {
